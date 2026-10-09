@@ -76,7 +76,7 @@ The listing re-assembles byte-identical to `pmuv1.bin` (checked with `tools/reas
 
    The opcodes are **absolute indexed** (`$B9`/`$99`/`$BD`). In IAR syntax, `(zp),Y` means indirect indexed (`$B1`/`$91`). This changes both the meaning and the instruction size.
 2. **`#!X` used as a bitwise complement:** in IAR, `!` is a logical NOT and `~` is the bitwise one. `#!M_P06_neg5_EN|M_P07_SYS_PWR` also had the wrong precedence: it gives `$BF`, but the ROM contains `$3F`.
-3. **IRQ_CTRL (`$FE`) bits 2–5:** Timer 1 and Timer 2 were swapped. Bits 4/5 belong to Timer 1 *or A-D*. That is why the A-D wait loops poll bit 5, which IDA had named `TIM2_REQ`.
+3. **IRQ_CTRL (`$FE`) bits 2–5:** Timer 1 and Timer 2 were swapped. Bits 4/5 belong to Timer 1 *or A-D*. That is why the A-D wait loops poll bit 5, which IDA had named `TIM2_REQ` (now `IRQ_T1_AD_REQ`).
 4. **PWM_CTRL (`$F5`):** the bit descriptions came from a different 740 part. On the M50753, only bit 0 (PWM output enable) exists.
 5. **`clb M_P30_RESET, PORT_P3`** in the INT2 handler: a mask constant was used as a bit number. The opcode `$3F` clears **bit 1 = P31 SYS_RST**, which holds the 68000 in reset while the reset/interrupt switch is pressed.
 6. **Port P4 initial value** was written with P3 mask names. `$0E` is P41, P42 and P43.
@@ -92,17 +92,32 @@ The listing re-assembles byte-identical to `pmuv1.bin` (checked with `tools/reas
 
 ## Symbol names
 
-`VIA_TEST_PIN`→`ENTER_SLEEP`, `NOT_CHARGING`→`CHARGER_CONNECTED` (the branch is taken when P13 /CHRG_ON is low), `FLAGS_Bits_1/6/7`→`PMINT_SENT/SLEEPING/RING_WAKEUP`, `FLAGS_Bits_AKD`→`AKD_IDLE_SEEN`. I also gave names to the battery-flag bits, the ADB status bits, the battery state variables and the XPRAM battery thresholds (`$42` low = 78, `$43` dead = 62). The battery and ADB bit names are my reading of the code, not Apple's names.
+All auto-generated `loc_xxxx` labels have descriptive names. The main renames:
+
+| Old (IDA) | New |
+|---|---|
+| `PowerManagerCommands_xx_name` | `PM_name` (e.g. `PM_readINT`, `PM_SLEEP_ACK`) |
+| `CMD_78_STATE`, `CMD_78_BITS_*` | `INT_STATE`, `INT_ADB` / `INT_BATT` / `INT_BATT2` / `INT_RESET` |
+| `FLAGS_Bits_1/2/4/5/6/7` | `FLAG_PMINT_SENT` / `FLAG_AKD_IDLE_SEEN` / `FLAG_ALARM_SET` / `FLAG_ALARM_HIT` / `FLAG_SLEEPING` / `FLAG_RING_WAKEUP` |
+| `ADB_STATUS_BITS_*`, `BAT_CHG_BITS_*` | `ADBF_*`, `BATF_*` |
+| `IRQ_CTRL_FLAGS_*`, `PWM_CTRL_FLAGS_COUNT` | `IRQ_INT1_REQ`, `IRQ_T1_AD_REQ`, ..., `PWM_EN` |
+| `VIA_TEST_PIN`, `NOT_CHARGING` | `ENTER_SLEEP`, `BAT_CHARGER` (the branch is taken when P13 is low) |
+| `IRQ_60Hz`, `CHECK_BAT_STATUS`, `BATTERY_READ_SUM` | `TICK`, `CHECK_BATTERY`, `BATTERY_SAMPLE` |
+| `VECTOR_INT2_RESET_CONTINUE` | `WARM_RESET` / `INIT` |
+| `PRAM_BUFFER*`, `PRAM_CHKSUM` | `XPRAM*`, `XPRAM_CHKSUM`; `XPRAM_BAT_LOW` ($42, default 78), `XPRAM_BAT_DEAD` ($43, default 62) |
+| `BUFFER`, `BUFFER_CNT` | `ADB_BUFFER`, `ADB_COUNT` |
+
+The battery and ADB bit names are my reading of the code, not Apple's names.
 
 ## Bugs or oddities in the original firmware (not disassembly errors)
 
-- `CHECK_BAT_STATUS` compares `PRAM_BAT_44` with IN0 and then branches to the next instruction, so the result is never used (dead code).
+- `CHECK_BATTERY` compares `XPRAM_44` with IN0 and then branches to the next instruction, so the result is never used (dead code).
 - `TIMERX_PRES` is written twice; the second write was probably meant for `TIMERX`. Timer X is unused anyway.
 - `$EF` soft reset jumps into the init code from inside a subroutine. The stack pointer isn't reset, and A/Y are left over from the command.
 - Incoming parameter counts (`READ_PARAMETER`, `xPramWrite`) are never checked against the 8-byte buffer or the 128-byte XPRAM.
 - `readINT` bit 2 is cleared by batteryRead but never set anywhere.
 - `DELAY_SMALL` at `$FF00` is never called.
-- In `COMMAND_8x_WAKEUP`, the `bbs 3, COMMAND` test right after `cmp #$80` can never branch.
+- In `COMMAND_8x_TIMER`, the `bbs 3, COMMAND` test right after `cmp #$80` can never branch.
 
 ## Files in this folder
 
@@ -111,5 +126,5 @@ The listing re-assembles byte-identical to `pmuv1.bin` (checked with `tools/reas
 | `pmuv1.bin.asm` | Corrected and documented listing |
 | `tools/m740.py` | 740 opcode table and decoder |
 | `tools/dis740.py` | Independent recursive disassembler → `pmuv1_independent_disassembly.txt` |
-| `tools/reasm740.py` | Re-assembles the listing and compares it with the ROM: `python3 tools/reasm740.py pmuv1.bin.asm pmuv1.bin` |
+| `tools/reasm740.py` | Re-assembles the listing and compares it with the ROM, including that the unused gaps (`BLKB`) are zero: `python3 tools/reasm740.py pmuv1.bin.asm pmuv1.bin` |
 | `docs/` | CPU documentation (M50753 datasheet extract, 740 Software Manual PDF + text) ADB documentation (Microchip AN591 PDF + text) and the Rockwell R6522 VIA datasheet (host interface) |

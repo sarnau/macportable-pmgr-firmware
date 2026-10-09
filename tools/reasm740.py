@@ -43,7 +43,10 @@ def parse(passno):
         if mn=='RSEG': seg=arg; pc=0; continue
         if mn=='ORG': pc=int(arg.replace('$',''),16); continue
         if mn in('END',): continue
-        if mn=='BLKB': pc+=ev(arg) if passno==2 or not re.search('[A-Za-z]',arg) else ev(arg); continue
+        if mn=='BLKB':
+            n=ev(arg)
+            if pc>=BASE: out.append((ln,pc,[0]*n,raw))   # unused ROM space must be zero-filled
+            pc+=n; continue
         if mn=='BYTE':
             bs=[]
             for part in re.findall(r'"[^"]*"|[^,]+', arg):
