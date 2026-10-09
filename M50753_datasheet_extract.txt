@@ -1,0 +1,1451 @@
+
+
+
+                                                                               -"
+               Port P2 input
+                                                                        /
+                                                                                    fEth   (¢ -P2D)
+
+
+
+
+2-198                                                   • MITSUBISHI
+                                                      "-ELECTRIC
+                                                                                               MITSUBISHI MICROCOMPUTERS
+
+                                                                                 M50753-XXXSP/FP
+                                                                        SINGLE·CHIP 8·BIT CMOS MICROCOMPUTER
+
+
+DESCRIPTION
+The M50753-XXXSP is a single-chip microcomputer de-                              PIN CONFIGURATION (TOP VIEW)
+signed with CMOS silicon gate technology. It is housed in a
+64-pin shrink plastic molded DIP (flat package type also                                              AVss
+                                                                                     Input port IN       INO __ 2
+available) . This single-chip microcomputer is useful for                           Reference
+                                                                                    voltage input
+business equipment and other consumer applications.
+                                                                                                     AVec                                                                                            Input port IN
+In addition to its simple instruction sets, the ROM, RAM,                        PWM output port     PWM 4 - 5
+and I/O addresses are placed on the same memory map to                                                   NC
+enable easy programming.                                                                                 P2 7 -               7
+The differences between the M50753-XXXSP and the
+M50753-XXXFP are the package outline and power dis-
+sipation ability (absolute maximum ratings).                                          I/O port P2
+
+
+DISTINCTIVE FEATURES                                                                                                                                                                                 lIO port PO
+•   Number of basic instructions .. · ................................ 69
+•   Memory size ROM .................................. 6144 bytes                               P3 7 /S RDy ++ 15
+                 RAM .................................... · 192 bytes                           P3 6 /CLK -                   16
+•   Instruction execution time                                                                  P3s/S oUT ++ 17
+        ....... 2,us (minimum instructions at 4MHz frequency)
+                                                                                 1/0 port P3
+•   Single power supply f(X IN )=4MHz ........ · .. ; .... ·5V±10%
+•   Power dissipation                                                                                                                                                                                1/0 port Pl
+      normal operation mode (at 4MHz frequency) .... 15mW
+•   Subroutine nesting" .......................... ·96 levels (Max.)
+                                                                                       Timer 110
+•   Interrupt .......................................... 8 types, 5 vectors
+•   8-bit timer ............. 3 (2 when used as A-D or serial I/O)
+•   Programmable I/O ports (Ports PO, P1, P2, P3, P4) .... 36
+•   Input ports (Port IN) ................................................ 8         Reset input RESET __ 27
+
+•   Serial 1/0.(8-bit) .................................................... ·1       Clock input
+                                                                                                                                                                                                     I/O port P4
+                                                                                    Clock output     X OUT 4 - 29
+•   A-D converter ............ · .. 8-bit successive approximation
+                                                                                   Timing output
+•   PWM function" ...................................................... ·1
+                                                                                 Reset output RESET OUT 4 - 31                                                                                     Timing output
+                                                                                                         Vss'            _3 2
+                                                                                                                           ..._ _ _ _ _->-'
+APPLICATION
+Office automation equipment                                                                                               Outline                                64P48
+VCR, Tuner, Audio-visual equipment
+                                                                                                     u    0     ,....   C\I    ('l   ..".   to   <0   r--.   0   ,....   N   (')   '<t   .0
+                                                                                                     0 0 0 0 0 0 0 0 0 .... ,...,...,-,...,...
+                                                                                                     >a..a..a..a..a..a..a..a.a...Il..a...c...a...a.
+                                                                                                         I I I I I I I I I I I I I I
+
+
+
+
+                                                                                                                        M50753-XXXFP                                                                Vss'
+                                                                                                                                                                                              22 -;. RESET OUT
+                                                                                                                                                                                              21   _¢
+
+
+
+                                                                                                                                                                                                    CNVss
+                                                                                                ---"7!T;:Tr.;'lrr.n7Tr,'l'T'Crr:;Tr;-rr.=rr.;;rr.c;rrc;rr.;T'_6 . - I NT2
+
+
+
+
+                                                                                                                        Outline 60P6
+                                                                                                                                                                                         NC : No connection
+
+
+
+
+                                                                    •     MITSUBISHI                                                                                                                       2-199
+                                                                  . . . . ELECTRIC
+   N
+    I
+   N
+   co
+                  M50753-XXXSP BLOCK DIAGRAM
+   co
+                                Clock    Clock      Timing      Timing                  Reset                   Interrupt                Interrupt            Reset                                                              Reference
+                                input    output     output      output                  output                    input                    input              input            (5V)                                               voltage
+                                                                                                                                                                                        (5V)      (OV)   (OV)        (OV)          input
+                                 X,N      XOUT          ¢         2¢                RESETouT                      INT,                     INT,               RESET            Vcc      AVec      Vss    AVss        CNVss          V AEF
+
+
+              r--...:~~- 30
+
+             I'                 1f 1
+                                                                  34
+
+
+
+
+                                                                  I
+                                                                              -~--r-T-T-
+                                                                                                                                                                               57        4          32       1           26
+
+                                                                                                                                                                                                                                   -r                  -~
+
+
+                                                                                                                                                                                                                                                     ,---J
+                                                                                                                                                                                                                                                                  I
+
+
+
+
+                                                                                                                                                                                                         n\;;=;~
+                                 Clock generating circuit
+                                                                                                                                                     II
+                                                                                                                                                      ROM                                                        Timer 1
+                                                                       Processor                 Program                   Program                                                                                Tl (B)
+              I                                                           status                  counter                  counter
+                                                                                                                                                   6144 bytes
+                                                                                                                                                                                                                                      \r      Instruction    1
+                                                                                                                                                                                                             1~
+                                                                      register PS (B)                                                                                                                                                          register 8
+
+
+
+                                                                                                                                                                                    l'~
+                                                                                                  PCelB)                    PCl(B)
+
+                                                                                                      t                      t                                                       I
+                                                                                                                                                                                                                 '2                   \1 r
+                                                                                                                                                                                        Prescaler
+                                                                                                                                                                                        PRE12 (B)                 TaB)                         Instruction
+                                                                                                                                                                                                                                                decoder
+                                                                                                                                                                                                                                                              I
+~                                                                                                                                                                                                            ly-                                  T
+11"131:
+              I               8-bit
+                           arithmetic                                      RAM
+                                                                                                                                                                          I~
+                                                                                                                                                                                      I "",J.
+                                                                                                                                                                                        Prescaler                Timer X
+                                                                                                                                                                                                                                             Control signal
+r"'_
+~CiI
+-te:
+::II:I1lIl
+                               and
+                             logical
+                                unit
+                                              Accumulator
+                                                 A(B)
+                                                                       192 bytes
+                                                                                                 Index
+                                                                                             register X (B)
+                                                                                                                           Index
+
+                                                                                                                    register Y (8)
+                                                                                                                                                     Stack
+                                                                                                                                                  pointer S (B)
+                                                                                                                                                                                        PREX (B)                  TX(B)
+
+                                                                                                                                                                                                                                      PWM
+                                                                                                                                                                                                                                     control
+                                                                                                                                                                                                                                                 1                    c.n
+                                                                                                                                                                                                                                                                      z
+                                                                                                                                                                                                                                                                      g
+                                                                                                                                                                                                                                                                      r
+niii                                                                                                 l-
+                                                                                                                                                                                                                                                                      ~
+     :5       I
+                                ,                                                                                                                                                                                                                                     (")
+                                                                                                                                                                                                                                                                      ::c
+                                                                                                                                                                                                                                                                      'V
+                           >-                                                           1                                                                                                                                                                             C!D               31:
+                  >---
+                                                                                   ):(~
+                                                                                                                                                                                                                                                                      IlIl     3: =4
+                                                                                                                                                                                                                                                                      -t
+                                                                                                                                                                                                                                                                               (II      ~
+                                                                            e=1/r~                                                                                                                                                                                             o IlIl
+              I                                                                                                                                                                                                                                                       (")
+                                                                                                                                                                                                                                                                      3:       -... c.n
+                                                                                                                                                                                                                                                                      0        (II      ::
+                                                                                                                                                                                                                                                                      c.n
+                                                                                                                     ;.-                                                                                                                                                       W _31:
+                                                                                                                                                                                                                                                              1
+                                                                                                                                                                                                                                                                               I
+                                                                                                                                                                                                                                                                      3:
+              Il.I       A-D                 RB)
+                                                            I      P4(B)                                        P3;B)
+                                                                                                                                     I                 "'"'           I                ",",              I               "'"'                I                        (")      >< (")
+                                                                                                                                                                                                                                                                               >< (")~
+                                                                                                                                                                                                                                                                               ><
+             ~')il<l~6tt!'yro",x;o
+                                                                                                                                                                                                                                                                      ::11:1
+                                                                                             '- l- I-----                                                                                                                                                             0
+
+                                                                                                                                          '7x8X9XlOXllXI2XI3~4:X43X44X4~49X5OX5iX52                                                           -~
+                                                                                                                                                                                                                                                                      (")
+
+                                                                38137136';(35            -       l'?Xl~17X1SXI9 2021 22                                                                                                       53X54X55):56
+                                                                                                                                                                                                                                                                      0
+                                                                                                                                                                                                                                                                      3:
+                                                                                                                                                                                                                                                                               (I)      ~
+                                                                                                                                                                                                                                                   PWM                'V       "a 'V
+                                        Input port IN           I/O port P4                                 I/O port P3                                                                                            I/O port PO              Pulse width CNTR          e:       .......... e:
+                                                                                                                                                                                                                                                                               ." ~
+                                                                                                                                                   I/O port P2                      I/O'port PI
+                                                                                                                                                                                                                                            modulation timer I/O      -t
+                                                                                                                                                                                                                                            output port               1"'1
+                                                                                                                                                                                                                                                                      ::11:1   "a ~
+                                                                                            MITSUBISHI MICROCOMPUTERS
+
+                                                                                                 MS0753-XXXSP/FP
+
+                                                                  SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+FUNCTIONS OF M50753-XXXSP
+                                Parameter                                                                Functions
+Number 01 basic Instructions                                      69
+Instruction execution time                                        2"s (minimum Instructions, at 4MHz Irequency)
+Clock frequency                                                   4MHz
+                                ROM                               6144bytes
+Memory size
+                                RAM                               I 92bytes
+                                INT"INT,                  Input   l-bitX2.
+                                                                  4-bltXI
+                                PO, PI, P2, P3, P4        110
+110 port                                                          8-bitX4 (Part 01 P3 are In common with serial 110) .
+                                IN                        Input   8-bitXI (Input and analog Input lor A-D)
+                                CNTR                      110     l-bltXI
+Serial 110                                                        8-bitXI
+                                                                  8-blt prescalerX2+8-blt timerX3
+Timers
+                                                                  (2 when A-O convertion or serial 1/0 is used)
+Subroutine nesting                                                96 levels (max)
+                                                                  two external interrupts
+Interrupts                                                        three timer interrupts
+                                                                  (2 of timer Interrupts are in common with serial 110 and A-D)
+Clock generating circuit                                          Built-in (Ceramic or quartz cry~tal oscillator)
+Supply voltage                                                    5V±IO%
+Power dissipation               At high-speed operation           15mW (at 4MHz frequency)
+                                Input/output voltage              12V (Ports PO, PI, P2. P3. P4, INT" INT,. CNTR)
+1/0 characteristics
+                                Output current                    IOmA (Ports PO, PI, P2, P3, P4)
+Memory expansion                                                  possible
+Operating temperature range·                                      -IO-70t
+Device structure                                                  CMOS silicon gate process
+A-O converter                                                     eight analog inputs, 8-channel successive approximation
+PWM function                                                      One output
+                                M50753-XXXSP                      64-pln shrink plastic molded DIP
+Package
+                               I M50753-XXXFP                     60-pin plastic molded OFP
+
+
+
+
+                                                            '. MITSUBISHI                                                         2-201
+                                                          ..... ELECTRIC
+                                                                                                       MITSUBISHI MICROCOMPUTERS
+
+                                                                                                           M50753-XXXSP/FP
+
+                                                                              SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+PIN DESCRIPTION
+                                       I
+                                           Input!
+        Pin             Name
+                                       I Output                                                        Functions
+
+
+
+ Vee           Supply voltage                       Power supply inputs 5V±10% to Vee, and OV to Vss.
+ Vss
+
+
+ CNVss         CNVss                                This is usually connected to Vss.
+
+ ---
+ RESET         Reset input                 Input    To enter the reset state, the reset input pin must be kept at a "L" for more than 2115 ~under normal Vee
+                                                    conditions). If more time is needed for the crystal oscillator to stabilize, this "L" condition should be main-
+                                                    tained for the required time.
+
+
+ XI'N          Clock input                 Input    This chip has an internal clock generating circuit. To control generating frequency, an external ceramic or a
+                                                    quartz crystal oscillator is connected between the X 1N and XOUT pins. If an external clock is used, the clock
+ X OUT         Clock output                Output   source should be connected 10 the X IN pin and the X OUT pin should be left open.
+
+
+ ¢, 2¢         Timing output               Output   This is the timing output pin.
+
+
+ CNTR          Timer I/O                    1/0     This is an output pin for the timer X.
+
+ --
+ INT,          i'nterrupt input   \.       Input    This is the highest order interrupt input pin.
+
+ --
+ INT2          Interrupt input             Input    This is the lowest order interrupt input pin.
+
+
+  PO O-P0 7    1/0 port PO                  1/0     Port PO is an 8-bit 1/0 port with directional registers allowing each 1/0 bit to be individually programmed as
+                                                    input or output. At reset, this port is set to input mode. The output structure is N-channel open drain.
+
+
+ P1 o-P1 7     110 port P1                  1/0     Port P1 is an 8-bit 110 port and has basically the same functions as port PO.
+
+
+ P2 o-P2 7     1/0 port P2                  1/0     Port P2 is an 8-bit 1/0 port and has basically the same functions as port PO.
+
+
+  P3 0 -P3 7   1/0 port P3                  1/0     Port P3 is an 8-bit 1/0 port and has basically the same functions as port PO. When serial 110 ,is used, P3 7 ,
+                                                                                --
+                                                    P36, P3s, and P3 4 work as SADY, elK, SOUT, and SIN pins, respectively.
+
+
+  P4 o-P4 7    1/0 port P4                  1/0     Port P4, is an 8-bit 1/0 port and has basically the same functions as port PO.
+
+
+  P5 0 -P5 7   Input port P5               Input    Port P5 is an 8-bit input port.
+
+
+  PWM          PWM output                  Output   This is output pin from the pulse width'modulator.
+                                                    The output structure is N-channel open drain.
+
+ ----
+ RESET OUT     Reset output                Output   This pin outputs the reset signal for peripheral devices ..
+
+
+ INa-IN?       Analog input port IN        Input    This i~ an 8-bit analog input port for the A-O converter, and can be used as normal input port.
+
+
+ V REF         Reference voltage           Input    This is the reference voltage input pin for the A-O converter.
+               input
+
+
+ AVee          Voltage input for A-O                This is the power supply input pin for the A-D converter.
+f--~---~-~
+
+
+ AVss          Voltage input for A-D                This is GND input pin for the A-D or O-A converter.
+
+
+
+
+                                                                  • MITSUBISHI
+2-202
+                                                                 "ELECTRIC
+                                                                                                                                                             MITSUBISHI MICROCOMPUTERS
+
+                                                                                                                                                                             M50753·XXXSP/FP
+
+                                                                 SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+BASIC FUNCTION BLOCKS
+                                                                           are the zero page address area. By using the zero page
+MEMORY                                                                     addressing mode, this area can also be accessed with 2
+A memQry map for the M5D753-XXXSP is shown in Figure                       bytes. The use of these addressing methods will greatly re-
+1. Addresses EBDD 16 to FFFF16 are assigned to the built-in                duce the object size required. The RAM, I/O port, timer,
+ROM area which consists of 6144 bytes.                                     etc., are assigned to this area.
+Addresses FFDD16 to FFFF16 are a special address area                      Addresses .0.0.0.0 16 to DDBF16 are assigned to the built-in
+(special page). By using the special page addressing                       RAM and consist of 192 bytes of static RAM. In addition to
+mode of the JSR instruction, subroutines addressed on this                 data storage, this RAM is used for the stack during sub-
+page can be called with only 2 bytes. Addreeses FFF416 to                  routine calls and interrupts.
+FFFF16 are vector addresses used for the reset and inter-
+rupts (see interrupt chapter). Addresses .0.0.0.016 to DDFF16
+
+
+
+                                                                 Decimal
+                                                 6                o                                                                                                      /
+                                                                                                                                                                     /           OOEO, 6 Port PO
+                                                                                                                                                             /
+                                                                                                                                                     /                           OOE1, 6 Port PO directional register
+                                                                                                                                             /
+                                                                                                                                    /                                            OOE2, 6 Port P1
+                                                                                                                                /
+                                                                                                                       /                                                         OOE3, 6 Port PI directional register
+                                                 6                 191                                         /
+               Zero page                                                                           /                                                                             OOE4, 6 Port P2
+                                                                                       /
+                                                     Not used                  /                                                                                                 OOES, 6 Port P2 directional register
+                                                                           /
+                                                                       /
+                                                                                                                                                                                 OOE6, 6
+                                           OOEO, 6
+                                                                                                                                                                                 OOE7, 6
+                                                                                                                                                                                 OOES, 6 Port P3
+                                           OOFF, 6                 255
+                                                                                                                                                                                 OOE9, 6 Port P3 directional register
+                                                                   \
+                                                                                                                                                                                 OOEA, 6 Port P4
+                                                                       \
+                                                                           \                                                                                                     OOEB, 6 Port P4 directional register
+                                                     Not used              \
+                                                                                                                                                                                 OOEC, 6
+                                                                               \
+                                                                               \                                                                                                 OOED, 6
+                                                                                   \
+                                                                                       \                                                                                         OOEE, 6 IN register
+                                           ESOO, 6
+                                                                                           \                                                                                     OOEF, 6 A-D register
+                                                                                               \
+                                                                                                   \                                                                             OOFO, 6
+                                                                                                       \
+                                                                                                           \                                                                     OOF1, 6
+                                                                                                               \                                                                 OOF2, 6 A·D start address
+                                                                                                                   \
+                                                                                                                                                                                 OOF3, 6 A-D control register
+                                           FFOO, 6                                                                     \
+                                                                                                                        \                                                        OOF4, 6
+                                                                                                                            \
+                                                                                                                            \                                                    OOF5, 6 PWM control register
+                                                                                                                                \
+                                                                                                                                    \                                            OOF6, 6 Serial I/O mode register
+                                                                                                                                        \                                        OOF7, 6 Serial I/O register
+                   ROM                                                                                                                   \
+              ( 6144 bytes)                                                                                                                  \                                   OOFS, 6
+                               Special
+                                                                                                                                                 \
+                               page for                                                                                                                                          OOF9, 6 Timer 1. 2 prescaler
+                                           FFF4, 6                                                                                                   \
+                              subroutine             Address L
+                                                                                               INT,                                                      \                       OOFA, 6 Timer 1
+                                                     Address H
+                                  call
+                                                     Address L
+                                                     Address·H         S I/O or Timer 2 \                                                                                        OOFB, 6 Timer 2
+                                                     Address L                                                                                                                   OOFC, 6 Timer X prescaler
+                                                     Address H             Timer 1 or A-D                                                                        \
+                                                     Address L                                                                                                   \
+                                                     Address H                         Timer X                                                                       \           OOFD, 6 Timer X
+                                                     Address L                                                                                                           \       OOFE, 6 Interrupt control register
+                                                     Address H                                                                                                           \
+                                                     Address L                                                                                                               \   OOFF, 6 Timer control register
+                                                     Address H                             RESET                                                                             \
+                                           FFFF, 6                 65535
+
+
+
+
+Flg.l   Memory map
+
+
+
+
+                                                          • MITSUBISHI                                                                                                                                                  2-2.03
+                                                        "'ELECTRIC
+                                                                                  MITSUBISHI MICROCOMPUTERS
+
+                                                                                     M50753-XXXSP/FP
+
+                                                                  SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+CENTRAL PROCESSING UNIT (CPU)                                       INDEX REGISTER X (X)
+The CPU consists of 6 registers and is shown in Figure 2.           The index register X is an 8-bit register.
+                                                                    In the index addressing mode, the value of the OPERAND
+ACCUMULATOR (A)                                                     added to the contents of the register X, specifies the real
+The 8-bit accumulator (A) is the main register of the micro-        address. When the T flag in the processor status register is
+computer. Data operations such as data transfer, Input/Out-         set to "1 ", the index register X itself becomes the address
+put, etc., are executed mainly through accumulator.                 for the second OPERAND.
+
+
+                                                                    INDEX REGISTER Y (Y)
+                                                                    The index register Y is an 8-bit register.
+                                                                    In the index addressing mode, the value of the OPERAND
+                                                                    added to the contents of the register Y specifies the real
+                                                                    address.
+
+
+
+
+                       7                   0
+
+
+                      I         A          I   Accumulator
+
+
+                      7                    0
+
+
+                      I          X         I   Index register X
+                                                                                                         Carry flag
+
+                                                                                              ' - - - - Zero flag
+
+                                                                                          L-_ _ _ _ Interrupt disable flag
+                                 y             Index register Y
+                                                                                       L-_ _ _ _ _       Decimal mode flag
+
+                      7                                                            L-_ _ _ _ _ _ _ Break flag
+
+
+                      I          S             Stack painter
+                                                                               L-_ _ _ _ _ _ _ _         Index X mode flag
+
+ 15
+                                                                            ' - - - - - - - - - - Overflow flag
+
+ I         PC H                 PC L           Program counter
+                                                                        L-_ _ _ _ _ _ _ _ _ _ Negative flag
+
+
+
+
+Fig.2   Register structure
+
+
+
+
+2-204                                                   •      MITSUBISHI
+                                                      ~ELECTRIC
+                                                                                    MITSUBISHI MICROCOMPUTERS
+
+                                                                                       MS07S3-XXXSP/FP
+
+                                                                   SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+STACK POINTER (S)                                                    1.   Carry flag (C)
+The stack pointer (S) is an 8-bit register that contains the         The carry flag contains the carry or borrow generated by
+address of the next location in the stack. It is mainly used         the Arithmetic and Logical operation Unit (ALU) im-
+during interrupts and subroutine calls. The stack pointer is         mediately after an operation. It also changed by the shift
+not automatically initialized after reset and should be initial-     and rotate instructions. The set carry (SEC) and clear carry
+ized by the program using the TXS instruction.                       (CLC) instructions allow direct access for setting and
+The location of the stack can be determined by the stack             clearing this flag.
+page bit (bit 4 at address 00FF ,6 ). When bit 4 is "0" and
+the contents of the stack pointer is XX ,6 , the stack address       2.   Zero flag (Z)
+is set to 00XX ,6 . When bit 4 is "1", the stack address is set      This flag is used to indicate if the immediate operation
+to 01 XX ,6. When using this microcomputer in the single-            generated a zero result or not. If the result is zero, the zero
+chip mode, the stack page bit must be "0" and the stack              flag will be set to "1". If the result is not zero, the zero flag
+pOinter should be set at the bottom address of the internal          will be set to "0".
+RAM.
+When an interrupt occurs, the higher 8 bits of the program           3.   Interrupt disable flag (I)
+counter are pushed into the stack first, and then the lower 8        This flag is used to disable all interrupts. This is accom-
+bits of the program counter are pushed into the stack. After         plished by setting the flag to "1". When an interrupt, this
+each byte is pushed into the stack, the stack pOinter is de-         flag is automatically set to "1" to prevent other interrupts
+cremented by one. Next, the contents of the processor sta-           from interfering until the current interrupt is completed. The
+tus register are pushed into the stack. When the return from         SEI and CLI instructions are used to set and clear this flag,
+interrupt instruction (RTI) is executed, the program counter         respectively.
+are processor status register data is pulled off the stack in
+reverse order from above.                                            4.   Decimal mode flag (D)
+The Accumulator is never pushed into the stack automati-             The decimal mode flag is used to define whether addition
+cally. A Push Accumulator instruction (PHA) is provided to           and subtraction are executed in binary or decimal. If the
+execute this function. Restoring the Accumulator to its pre-         decimal mode flag is set to "1", the operations are ex-
+vious value is accomplished by the Pull Accumulator in-              ecuted in decimal, if the flag is set to "0", the operations
+struction (PLA). It is executed in reverse order of the PHA          are executed in binary. Decimal correction is automatically
+instruction.                                                         executed. The SED and CLD instructions are used to set
+The contents of the Processor Status Register (PS) are               and clear this flag, respectively.
+pushed (pulled) to (from) the stack with the PHP and PLP
+instructions, respectively. Only the program counter is              5.   Break flag (B)
+pushed into the stack during a subroutine call. Therefore,           When the BRK instruction is executed, the same operations
+any registers that should not be destroyed should be                 are performed as in an interrupt. The address of the inter-
+pushed into the stack manually. The RTS instruction is               rupt vector of the BRK instruction is the same as that of the
+used to return from a subroutine.                                    lowest priority interrupt. The contents of the Bflag can be
+                                                                     checked to determine which condition caused the interrupt.
+PROGRAM COUNTER (PC)                                                 If the BRK instruction caused the interrupt, the break flag
+The 16-bit program counter consists of two 8-bit registers           will be "1", otherwise it will be "0".
+PC H and PCL. The program counter is used to indicate the
+address of the next instruction to be executed.                      6.   Index X mode flag (T)
+                                                                     When the T flag is "1", operations between memories are
+PROCESSOR STATUS REGISTER (PS)                                       executed directly without passing through the accumulator.
+The processor status register is composed entirely of flags          Operations between memories involving the accumulator
+used to indicate the condition of the processor immediately          are executed when the T flag is "0" (i.e" operation results
+after an operation. Branch operations can be performed by            between memories 1 and 2 are stored in the accumulator).
+testing the Carry flag (C), Zero flag (Z), Overflow flag (V)         The address of memory 1 is specified by the contents of
+or the Negative flag (N). Each bit of the register is ex-            the index register X, arrd that of memory 2 is specified by
+plained below.                                                       the normal addressing mode. The SET and CL T instructions
+                                                                     are used to set and clear the index X mode flag, respec-
+                                                                     tively.
+
+
+
+
+                                                        • MITSUBISHI                                                           2-205
+                                                      ;"ELECTRIC
+                                                                                        MITSUBISHI MICROCOMPUTERS
+
+                                                                                            M50753-XXXSP/FP
+
+                                                                  SINGLE-CHIP 8-BITCMOS MICROCOMPUTER
+
+
+ 7.     Overflow flag (V)                                           INTERRUPT
+The overflow flag functions when one byte is added or sub-          The M50753-XXXSP can be interrupted from eight sources;
+tracted as a signed binary number. When the result ex-              INT" Timer X, Timer 1/A-D, Timer 2/Serial I/O, or the
+ceeds +127 or -128, the overflow flag is set to "1 ". When          INT2/BRK instruction.
+the BIT instruction is executed, bit 6 of the memory location       The value of bit 2 of the serial I/O register (address
+is input to the overflow flag. The overflow flag is reset by        00F6'6) determines whether the interrupt is from timer 2 or
+the elV instruction and there is no set instruction.                from serial I/O. When bit 2 is "1" the interrupt is from serial
+                                                                    11.0, and when bit 2 is "0" the interrupt is from timer 2. Also,
+ 8.     Negative flag (N)                                           when bit 2 is "1 ", parts of port 3 are used for serial I/O. Bit
+  The negative flag is set whenever the result of a data trans-     3 of the A-D control (address 00F3'6) register determines if
+  fer or operation is negative (bit 7 is set to "1"). Whenever      an interrupt is from timer 1 or from the A-D. When bit 3 is
+  the BIT instruction is executed, bit 7 of the memory location     "0", the interrupt is from timer 1, when bit 3 is "1" the inter-
+  is input to the negative flag. There are no instructions for      rupt is from the A-D. These interrupts are vectored and
+. directly setting or resetting the negative flag.                  their priorities are shown in Table 1. Reset is included in
+                                                                    this table since it has the same function as an interrupt.
+                                                                    When an interrupt is accepted, the contents of certain reg-
+Table 1         Interrupt vector address and priority
+                                                                    isters are pushed into specified locations, (as discussed in
+        Interrupt             Priority        Vector address        the stack pOinter section) the interrupt inhibit flag (I) is set,
+        RESET                    1           FFFF'6, FFFE'6         the program jumps to the address specified by the interrupt
+         INT,                    2          FFFD'6, FFFC'6          vector, and the interrupt request bit is cleared automatical-
+        Timer X                  3          FFFB'6, FFFA'6
+                                                                    ly. The reset interrupt is the highest priority interrupt and
+  Timer 1 or A-D                 4           FFF9'6, FFF8'6
+                                                                    can never be inhibited. Except for the reset interrupt,all in-
+ Timer 2 or serial I/O           5           FFF7'6, FFF6'6
+                                                                    terrupts are inhibited when the interrupt inhibit flag is set to
+      INT2 (BRK)                 6           FFF5'6, FFF4'6
+                                                                    "1". All of the other interrupts can further be controlled indi-
+
+
+
+
+                                                                               Interrupt control register (Address OOFE 16 )
+                                               ~~~~~~~~
+                                                                               Bit 7: INT, pin interrupt request bit
+                                                                               Bit 6: INT, pin interrupt enable bit
+
+                                                                               Bit 5: Timer 1 interrupt or A-D interrupt request bit
+                                                                               Bit 4: Timer 1 interrupt or A-D interrupt enable bit
+                                                                               Bit 3: Timer 2 interrupt or serial I/O interrupt request bit
+
+                                                                               Bit 2: Timer 2 interrupt or serial I/O interrupt enable bit
+                                                                               Bit 1: INT, pin interrupt request bit
+                                                                               Bit 0: INT, pin interrupt enable bit
+
+
+
+
+                                                                               Timer control register (Address OOFF16 )
+
+        Interrupt                                                              Bit 7: Timer X interrupt request bit
+        request
+                                                                               Bit 6: Timer X interrupt enable bit
+                                                                               Bit 5: Timer X count stop bit
+                                                                               Bit 4: Stack page bit
+
+                                                                               Bit 3: }
+                                                                                            Timer X mode bit
+                                                                               Bit 2:
+
+                                                                               Bit 1:   }
+                                                                                            Processor mode bit
+                                                                               Bit 0:
+
+
+Fig.3     Interrupt control
+
+
+
+
+2-206                                                      • MITSUBISHI
+                                                         ;"ELECTRIC
+                                                                                       MITSUBISHI MICROCOMPUTERS
+
+                                                                                           MS0753-XXXSP/FP
+
+                                                                  SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+ vidually via the interrupt control register shown in Figure 3.      TIMER
+An interrupt is accepted when the interrupt enable bit and           The M50753-XXXSP has three timers; timer X, timer 1, and
+the interrupt request bit are both "1" and the interrupt in-         timer 2. Since P3 (in serial I/O mode) and timer 2 use
+hibit flag is "0".                                                    some of the same architecture, they cannot be used at the
+The interrupt request bits are set when the following condi-          same time (see serial I/O section). Timer X has four modes
+tions occur:                                                        . which can be selected by bit 2 and 3 of the timer control
+(1) When the Tl\iT, or INT2 pins go from "H" to "L"                   register. When the timer X count stop bit (bit 5) is set to
+(2) When the contents of timer X, timer 1, timer 2 (or the            "1"; the timer X will stop regardless of which mode it is in.
+     serial I/O counter) go to "0"                                   A block diagram of timer X, timer 1 and timer 2 is shown in
+(3) A-O conversion is finished.                                      Figure 4.
+These request bits can be reset by the program but can not           Timer 1 and timer 2 share with a prescaler. This prescaler
+be set.                                                              has an 8-bit programmable latch used as a frequency di-
+Since the BRK instruction and the INT2 interrupt have the            vider. The division ratio is defined as 1/n, where n is the
+same vectored address, the contents of the B flag must be            decimal contents of the prescaler latch. All three timers are
+checked to determine if the BRK instruction caused the in-           down-count timers which are reloaded from the timer latch
+terrupt or if INT2 generated the interrupt.                          following the zero cycle of the timer (i.e. the cycle after the
+                                                                     timer counts to zero).
+
+
+
+
+  Oscillator   Divider
+
+
+
+
+                                                                                                         to timer X interrupt
+                                                                                                         request bit
+
+                         Pulse output mode
+                                                                                   STP instructions
+                              1 - - - - - - - - - - - - 1 Toggle fliP-fIOPj---------;::.._ _,-,-,-.,---,
+                                                                                                                          A-D control
+                                                                                                                          register
+
+
+                                                                                                                r - - - - - from A-'o
+
+
+                                                                                                                                     to timer
+                                                                                                                                     1 or A-D
+                                                                                                                                     interrupt
+                                                                                                                                      request
+
+
+
+
+                                                        Serial I/O counter (3)
+    P36
+
+
+
+
+                                                                  Serial I/O mode register (Address OOF6 16 )
+
+
+
+Fig.4     Block diagram of timer X, timer 1, and timer 2
+
+
+
+
+                                                      • . MITSUBISHI                                                                    2-207
+                                                     "ELECTRIC
+                                                                                   MITSUBISHI MICROCOMPUTERS
+
+                                                                                      M50753-XXXSP/FP
+
+                                                                   SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+The timer interrupt request bit is set to "1" during the next
+clock pulse after the timer reaches zero. The interrupt and
+timer control registers are located at addresses 00FE 16 and                         a
+00FF 16 , respectively (see interrupt section). Theprescaler          I I I I I I I I I Timer control register (Address OOFF,,)
+latch and timer latch can be loaded with any number ex-
+cept zero and 1.                                                                       LL      Processor mode bit
+
+The four modes of timer X as follows:                                                           00: Single,chip mode
+
+(1) Timer mode (ooJ                                                                              01: Memory expanding mode
+                                                                                                 10: Microprocessor mode
+     In this mode the clock is driven by the oscillator fre-
+                                                                                                 11: Eva-chip mode
+     quency divided by 16. When the timer down-counts to
+     zero, the timer interrupt request bit is set to "1" and
+     the contents of the timer's latch is reloaded into the                                    Timer X mode bit
+     timer and the counting begins again.                                                        00: Timer mode
+(2) Pulse output mode (01]                                                                       01: Pulse output mode
+     In this mode, the polarity of theCNTR signal is re-                                         10: Event counter mode
+     versed each time the timer down-counts to zero.                                             11: Pulse width measurement mode
+                                                                                               Stack page bit
+(3) Event counter mode (10J
+                                                                                                 0: a page
+     This mode operates in the same manner as the timer
+                                                                                                 1: 1 page
+     mode except, the clock source is input to the CNTR
+                                                                                               Timer X count stop bit
+     pin. This mode will allow an interrupt to be generated
+                                                                                                 0: Count start
+     whenever a specified number of external events have                                         1: Count stop
+     been generated. The timer down-counts every rising
+                                                                                               Timer X interrupt enable bit
+     edge of the clock source.                                                                   a : Interrupt disable
+(4) Pulse width measurement mode (11J                                                            1 : Interrupt enable
+     This mode measures the pulse width (between lows)
+                                                                                               Timer X interrupt request bit
+     input to the CNTR pin. The timer, driven by the oscilla-
+                                                                                                 0: No interrupt request
+     tor frequency divided by 16, continues counting during
+                                                                                                 1: With interrupt request
+     the low cycle of the CNTR pin. When the timer con-
+     tents reaches "0", the interrupt request bit is set to "1",
+     the timer's reload latch is reloaded and the counting           Flg.5   Structure of timer control register
+     resumes.
+     The structure of the timer control register is shown in
+     Figure 5.
+     When the STP instruction is executed, or after reset,
+     the prescaler and timer latch are set to FF 16 and .01 16 ,
+     respectively. Also, when the STP instruction is ex-
+     ecuted, the oscillator's frequency (divided by 16) will
+     become the counting source, regardless of the timer X
+     mode setting. This state will be released when the tim-
+     er X interrupt request bit is set to "1", or after a reset.
+     Timer X will thel) enter the mode specified by its mode
+     bits. For more details on the STP instruction, refer to
+     the oscillation circuit section.
+     When timer 1 or 2 is used, the bit 0 of PWM control
+     register must be set to "0". For details, refer to the
+     PWM section.
+
+
+
+
+2-208                                                   • MITSUBISHI
+                                                      . . . . ELECTRIC
+                                                                                              MITSUBISHI MICROCOMPUTE.RS
+
+                                                                                                    MS0753·XXXSP/FP
+
+                                                                    SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+SERIAL 1/0                                                                 quency divided by 16, becomes the. clock.
+ A block diagram of the serial 1/0 is shown in Figure 6.                   Bit 2 and 3 decide whether parts of P3 will be used as a
+In the serial 1/0 mode the receive ready signal (SRDY), syn-               serial 1/0 or not. When bit 2 is a "1", P3 6 becomes an 1/0
+chronous input loutput clock (elK), and the serial 1/0 pins                pin of the synchronous clock. When an internal synchronous
+(SOUT, S,N) are used as P3 7, P3 6, P3 5, and P3 4, respectively.          clock is selected, the clock is output from P3 6 . If an exter-
+The serial 1/0 mode register (address 00F6 ,6) is a 4-bit                  nal synchronous clock is selected, the clock is input to P3 6
+register. Bits 1 and 0 of this register is used to select a                and P3 5 will be a serial output and P3 4 will be a serial in-
+synchronous clock source.                                                  put. To use P3 4 as a serial input, set the directional register
+When these bits are (ooJ or (01 J , an external clock from                 bit which corresponds to P3 4 to "0". For more information on
+P3 6 is selected. When these bits are (1 oJ, the' overflow sig-            the directional register, refer to the 1/0 pin section.
+nal from timer 2, divided by two, becomes the synchronous                  To use the serial 1/0, bit 2 needs to be set to "1 ", if it is "0"
+clock. Therefore, changing the timer period will change the                P3 6 will function as a normal 1/0. Interrupts will be gener-
+transfer speed. When the bits are (11] , the oscillator fre-               ated from the serial 1/0 counter instead of timer 2. Bit 3
+
+              Oscillator   Divider
+
+
+
+
+                                                          from timer 1,2
+        P3,   )---"-_<      1----1------,-------., prescaler
+                                                                 Divider
+
+                                                                  1/2 1 - - - - - - - - " ' - 1 '
+                                                                                                                               to timer 2 or serial 1/0
+                                                                                                                               interrupt request bit
+
+
+                                                                     Serial 1/0 counter (3)
+
+        P3,
+                                                                 Transfer clock
+
+
+
+
+                                              (Address OaF?,,)
+
+
+
+
+                                                                                          Serial 1/0 mode register (Address 00F6,,)
+
+
+
+                                                                                U         Synchronous clock selection bit
+
+                                                                                          00:
+                                                                                          01:
+                                                                                                I   External clock
+
+                                                                                          10: Timer 2 overflow signal divided by 2
+
+                                                                                          11: Oscillation frequency divided by 16
+
+
+                                                                           ' - - - - - - Serial 1/0 port selection bit (P3 5 , P3,)
+
+                                                                                          0: Normal 1/0 port
+
+                                                                                          1: Serial 1/0 port
+
+
+                                                                     '--------,---- SRDY signal output selection bit (P3,)
+
+                                                                                          0: Normal 1/0 port
+
+                                                                                          1: SRDY signal output pin
+
+Fig.6    Block diagram of serial 1/0
+
+
+
+
+                                                         •   MITSUBISHI                                                                          2-209
+                                                       ..... ELECTRIC
+                                                                                             MITSUBISHI MICROCOMPUTERS
+
+                                                                                                 M50753-XXXSP/FP
+
+                                                                        SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+determines if P37 is used as an output pin for the receive                     rising edge of this clock, data can be input from P34 and
+data ready signal (bit 3= 1, SRDY) or used as normal 1/0 pin                   the data in the serial 1/0 register will be shifted 1 bit.
+(bit 3=0). The serial 1/0 function is discussed below. The                     Data is output starting with the LSB.After the transfer clock
+function of the serial 1/0 differs dependirig on the clock                     has counted 8 times, the serial 1/0 register will be empty
+source; external clock or internal clock.                                      and the transfer clock will remain at a high level. At this
+Internal Clock-The SRDY signal becomes "H" during trans-                       time the interrpt request bit will be set.
+mission or while dummy data is stored in the serial 1/0 reg-                   External Clock-If an external clock is used, the interrupt
+ister (address 00F7 16 ). After the falling edge of the write                  request will be sent after the transfer clock has counted 8
+signal, the SRDY signal becomes low signaling that the                         times but transfer clock will not stop.
+M50753-XXXSP is ready to receive the external serial data.                     Due to this reason, the external clock must be controlled
+The SRDY signal goes "H" at the next falling edge of the                       from the outside. The. external clock should not exceed
+transfer clock. The serial 1/0 counter is set to 7 when data                   250kHz at a duty cycle of 50%. The timing diagram is
+is stored in the serial 1/0 register. At each falling edge of                  shown in Figure 7. An example of communication between
+the transfer clock, serial data is output to P3 5 . During the                 two M50753-XXXSPs is shown in Figure 8.
+
+
+
+
+ Synchronous clock
+
+
+ Transfer clock
+
+
+
+ Serial I/O register write
+ signal
+
+ Serial I/O output
+                                                                                                                              D7
+      Sour
+
+
+
+                                 ------~~~~-----
+ Serial I/O input
+        S'N
+
+ Receivable signal
+        SRDY                                           U
+                                                                                                               Interrupt request bit set
+
+
+
+Flg.7     Serial 1/0 timing
+
+
+
+
+                                Sending side                                                                 Receiving side
+
+
+                      Serial I/O mode, register                        -                         Serial I/O mode reqister
+                                                           P3 7         SRDY          P3 7
+
+                     bit3                      bitO                                              bit 3                        bit 0
+
+                        I I I
+                            0      1   1
+                                           I   0
+                                                   I                                               I I I 1      1    0
+                                                                                                                         Ix        I
+                     Set the directional register          P3,    Synchronous clock   P3 5       Set the directional register
+                     for P3 7 pin in input mode                                                  for P3, pin in input mode
+
+
+
+
+                                                           P35       Serial data      P3,
+
+
+
+
+Fig.8     Example of serial 1/0 connection
+
+
+
+
+2-210
+                                                                • MITSUBISHI
+                                                              ..... ELECTRIC
+                                                                                            MITSUBISHI MICROCOMPUTERS
+
+                                                                                                  M50753-XXXSP/FP
+
+                                                                      SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+A-D CONVERTER                                                               Port IN can also be used as an input port by reading data
+The A-D converter circuit is shown.in Figure 9. The analog                  into address EE ,6. However, this cannot be done during A-
+ input ports of the A-D converter (INO-IN?) are in common                   D conversions.
+with input ports of the data bus.
+The 4-bit A-D control register is located at address F3 ,6 .                          I 2 11 I 0 I A-D control register (Address OOF3'6)
+One of the eight analog inputs is selected by bits 0, 1 and
+2 of this register. The correspondence of the analog input
+                                                                                        0     0     0                 INa
+pins with bits 0-2 is shown in Figure 10. Bit 3 selects the
+ interrupt source, either from timer 1 or the A-D itself. If bit 3                      0     a                       INl
+is "0", then the interrupt request is from timer 1, if it is a "1",
+                                                                                        0           0                 IN2
+then it is from the A-D.
+A-D conversion is accomplished by first selecting the ana-                              0                             IN3
+log channel (bit 0, 1) to be converted. Bit 3 should also be
+                                                                                              0     0                 IN4
+set to "1" to select the A-D as the interrupt source. The
+conversion is started when dummy data is written into                                         a                       IN5
+address 00F2 ,6. When the conversion is finished, an inter-
+rupt is generated by the A-D and the digital data can be
+                                                                                                    0                 IN6
+read from the A-D register (address 00EF ,6 ).                                                                      IN?
+                                                                            Fig10    A-D control register bit 0, 1,2 vs analog input
+
+
+
+
+                                                     A-D control register
+                                r---'r-~"-"""T--' (Address OOF3'6)
+
+
+
+
+                                                                                                                         interrupt request bit
+
+        (Address OOEE 16 )
+
+
+                                                                              A-D control circuit
+
+    INO
+
+                                     .<=
+    INl                              S
+                                     .~
+
+    IN2                               rn
+                                      0
+                                     ~
+    IN3                              'x"
+    IN4
+                                     g."
+                                     s
+    IN5
+                                     .,
+                                      E
+                                      c:
+                                      c:
+                                   .'".<=
+    IN6                               'r
+                                    '"
+    IN7
+
+
+
+
+                                              AVec               AVss                                   V REF
+
+
+Fig.9     A-D converter circuit
+
+
+
+
+                                                         . • MITSUBISHI                                                                 2-211
+                                                        . . . . ELECTRIC
+                                                                                     MITSUBISHI MICROCOMPUTERS
+
+                                                                                           M50753-XXXSP/FP
+
+                                                                  SINGLE-CHIP 8-BI.T CMOS MICROCOMPUTER
+
+
+PWM                                                                    When bit 0 of the PWM control register is "1", a rectangular
+The M50753-XXXSP has a pulse width modulated (PWM)                     wave is output according to the value set in timer 1 and 2.
+output control circuit. The circuit outputs a variable duty cy-        The clock source frequency for the PWM is the oscillator
+cle signal that can be used for a programmable pulse width             frequency divided by 16.
+and frequency. Timers 1 and 2 are used for the PWM. The
+block diagram of the PWM is shown in Figure 11.
+The PWM is composed of N-channel open drain transistors.
+When bij 0 of the PWM control register is "0", the output
+transistors are turned off. When timers 1 and 2 are not used
+for PWM control, they operate in the normal timer modes.
+
+
+
+
+                                                    Q
+
+
+
+
+                                                                                                 1-'--------3-'" Interrupt
+                                                                                                                      request
+
+
+                                                                                                                      PWM
+
+
+
+
+                                                                                                 I-~_ _ _ _ _-"'" Interrupt
+             Divider                                                                                                  request
+
+
+
+             Oscillator
+
+
+
+
+Fig.11   PWM block diagram
+
+
+
+
+  PWM
+                          I                        Timer 1
+                                                                                                           I
+                                                                           Timer 2
+                                                                  l'
+                                                        Timer 1   + Timer 2            ,
+
+
+
+
+Flg.12   PWM rectangle waveform
+
+
+
+
+2-212                                                  •     MITSUBISHI
+                                                     . , . . EL,ECTRIC
+                                                                                               MITSUBISHI MICROCOMPUTERS
+
+                                                                                                   MS0753·XXXSP/FP
+
+                                                                      SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+RESET CIRCUIT                                                              An example of the reset circuit is shown in Figure 13.
+Th~   M50753-XXXSP is reset according to the sequence                      When the power on reset is used, the RESET pin must be
+shown in Figure 15. It starts the program from the address                 held "L" until the oscillation of X'N-X OUT bec_omes stable.
+formed by using the content of address FFFF '6 as the high
+order address and the content of the address FFFF '6 as the
+low order address, when the RESET pin is held at "L" level
+                                                                                                                   Address
+for more than 2/1 s while the power voltage is in the recom-
+mended operating condition and the crystal oscillator                        (1)    Port PO directional register       ( El 16 )   .. ·1         00'6            I
+oscillation is stable and then returned to "H" level. The in-
+ternal initializations following reset are shown in Figure 14.               (2)    Port Pl directional register       (E3'6)      ···1          00'6        J
+                                                                             (3)    Port P2 directional register       (E5'6)      ···1          00'6
+                                                                                                                                                                 I
+                                                                             (4)    Port P3 directional register       (E9'6)      ···1          00'6
+                                                                                                                                                                 I
+       M50753-XXXSP
+                                                                             (5)    Port P4 directional register       (EB'6)"'1                 00'6            I
+   RESET              Vee
+                            OV
+                                                                             (6)    Serial I/O mode register           (F6'6) ---I         I I I 10 I0 I0 10 !
+
+                            OV----I......-
+                                                                             (7) Prescaler X                           (FC'6) "-I               FF'6
+
+                                                                             (8)    Timer X                            (FD'6) "-I                01'6
+
+                                                                             (9)    Interrupt control register         (FE'6) .. ·1              00'6
+
+                                                                             (10)   Timer control register             (FF'6)      ···1      00,6,    I
+       M5075~-XXXSP
+                                                                             (11)   Interrupt disable flag on           (PS)       ·.. 1 II I I 1'1 I I
+                                                                                    processor status register
+                      Vee
+  27                  _ 5~ ____ ~ Supply voltage detection
+                  j             I                   circuit
+                  I                 I                                                                                                       Contents of
+                                                                             (12)   Program counter                    (PC H )              address FFFF16
+                  I                 I
+                  I                 I
+       ~----~~                      i                                                                                  (PC l )              Contents of
+                                                                                                                                            address FFFE16
+                                    I
+                                    I
+                                                                             (13)
+                  I
+                  I          I
+                                    I                                               A-D control register               (F3'6) ···1
+                                                                                                                                   I I I 10 101 0 10 1
+                  L ________        J                                        (14)   PWM control register               (F5'6) ···1
+                                                                                                                                   I I I I I I 10 I
+Fig.13     Example of reset circuit                                        Fig.14       Internal state of microcomputer at reset
+
+
+
+
+         RESET
+
+
+         RESEToUT
+
+
+        SYNC
+
+
+        Address
+
+                                                                                                                   Reset address from the
+        Data                                                                                                       vector table
+
+
+
+                                                      Note 1: Frequency relation of f(X,N) and ¢ is f(X'N)=4'¢
+                                 8 -12 clock cycles        2: The mark .. ?. means that the address is changeable depending on the previous state
+
+
+Fig.15    Timing diagram at reset
+
+
+
+
+                                                            • MITSUBISHI                                                                                 2-213
+                                                           ~ELECTRIC
+                                                                                   MITSUBISHI MICROCOMPUTERS
+
+                                                                                      M50753-XXXSP/FP
+
+                                                              SINGLE·CHIP S·BIT CMOS MICROCOMPUTER
+
+
+1/0 PORTS                                                         (4)    Port P3
+(1) Port PO                                                              In the single-chip mode, port P3 has the same function
+    Port PO is an 8-bit 1/0 port with N-channel open drain               as PO. In the other modes, P3's functions are slightly
+    output.                                                              different from PO's. Port P3 can also be used as serial
+    Pull-up transistor can be specified as an option. As                 1/0 pins. For more details, see the processor mode in-
+    shown in the memory map (Figure 1), port PO can be                   formation.
+    accessed at zero page memory address 00E016 . Port            (5)    Port P4
+    PO has a directional register (address 00E1 16 ) which               Port P4 is an 4-bit 1/0 port with N-channel open drain
+    can be used to program each individual bit as input                  outputs. This port also has the pull-up transistor option.
+    ("0") or as output ("1"). If the pins are programmed as       (6)    Clock 2 ¢> output pin
+    output, the output data is latched to the port register              In normal conditions, the oscillator frequency divided
+    and then output. When data is read from the output port              by two is output as 2 ¢>.
+    the output pin level is not read, only the latched data in    (7)    Clock ¢> output pin
+    the port register is read. This allows a previously output           In normal conditions, the oscillator frequency divided
+    value to be read correctly even though the output vol-               by four is output as ¢>.
+    tage level is shifted up or down. Pins set as input are       (8)    RESETOUT pin
+    in the floating 'state and the signal levels can thus be             When the RESET pin goes to level "L", the RESET OUT
+    read. When data is written into the input port, the data             pin also goes to "L". On the other hand, when the RE-
+    is latched only to the port latch and the pin still remains          SET pin goes to level "H", the RESET OUT pin also goes
+    in the floating state.                                               to "H" after 8 clock cycles. This output is used'to reset
+    Depending on the contents of the processor status reg-               the external circuits.
+    ister (bit 0 and bit 1 at address 00FF 16 ), four different   (9)    INTl pin
+    modes can be selected; single-chip mode, memory ex-                  The INTl pin is an interrupt input pin. The INTl inter-
+    panding mode, microprocessor mode and eva-chip                       rupt request bit (bit 7 at address 00FE 16 ) is set to "1"
+    mode. These modes (excluding single-chip mode)                      'when the input level of this pin changes from "H" to
+    have a multiplexed address output function in addition              "Ln.
+    to the 1/0 function. For more details, see the processor      00)  INT2 pin
+    mode information.                                                  The INT2 pin is an interrupt input pin. When this signal
+(2) Port P1                                                            level changes from "H" to "L", the interrupt request bit
+    In the single-chip mode, port P1 has the same function'            (bit 1 at address 00FE 16 ) is set to "1".
+    as PO. In the other modes, P1 's functions are slightly       (11) CNTR pin
+    different from PO's. For more details, see the processor           The CNTR pin is an 110 pin of timer X. In the event
+    mode information.                                                  counter mode, CNTR becomes the input pin of the ex-
+(3) Port P2                                                            ternal pulse. In the pulse output mode, the CNTR out-
+    In the single-chip mode, port P2 has the same function             put changes polarity each time the contents of timer X
+    as PO. In the other modes, P2's functions are slightly             goes to "0". In the pulse width measurement mode, the
+    different from PO's.                                               pulse to be measured is input to this pin.
+     For more details, see the processor mode information.        (11) Port IN
+                                                                       Port IN is an 8-bit input port to the A-D converter. The
+                                                                       input contents of the port can be read to as the con-
+                                                                       tents of address 00EE 16 . The read operation is inhibited
+                                                                       during A-D conversion.
+
+
+
+
+2-214                                                 •    MITSUBISHI
+                                                    ...... ELECTRIC
+                                                                                 MITSUBISHI MICROCOMPUTERS
+
+                                                                                    MS07S3·XXXSP/FP
+
+                                                                  SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+
+    Ports PO, Pl, P2, P3, P4
+
+                                                                                                   N-channel open drain output
+
+
+                               ,--------1 Directional register
+                                                                             ;--t-~-:
+                                                                             I           I
+                                                                                             Option
+                                                                             I           ,
+                                                                             I           I
+                                                                             L ______ I
+
+
+
+                                                                                             Ports PO, PI, P2, P3
+                   Data bus -+-----1           Port latch
+
+
+
+
+                                                                             (Note) P3 can be also used as I/O pin of serial I/O
+
+
+
+
+     Port IN
+
+
+
+
+     CNTR                                                                                             N-channel open drain output
+
+
+
+
+    ¢, 2¢, RESET OUT
+
+                                                                                 J            CMOS output
+
+
+
+
+                                                                        ---c t:2                RESETour
+
+
+
+
+Fig,16   Block diagram of ports PO~P5 (single-chip mode), and output and input formats CNTR, </>, RESET OUT,
+         2 </>, and port IN
+
+
+
+
+                                                              • MITSUBISHI                                                          2-215
+                                                            "'ELECTRIC
+                                                                                MITSUBISHI MICROCOMPUTERS
+
+                                                                                    M50753-XXXSP/FP
+
+                                                                SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+PROCESSOR MODE                                                    (1)  Single-chip mode (00)
+By changing the contents of the processor mode bit (bit 0              The microcomputer will automatically be in the single-.
+and 1 at address OOFF,s), four· different operation modes              chip mode when started from reset, if CNV ss is con-
+can be selected; single-chip mode, memory expanding                    nected to Vss. Ports PO- P3 will work as original I/O
+mode, microprocessor mode and evaluation chip (eva-                    ports.
+chip) mode. In the memory expanding mode, microp-                 (2) Memory expanding mode (01)
+rocessor mode and eva-chip mode, ports PO - P3 can be                  The microcomputer will be placed in the memory ex-
+used as multiplexed I/O for address, data and control sig-             panding mode when CNVss is connected to Vss and
+nals, as well as the normal functions of the I/O ports.                the processor mode bits are set to "01". This mode is
+Figure 14 shows the functions of ports PO-P3.                          used to add external memory when the internal mem-
+The memory map for the single-chip mode is illustrated in              ory is not sufficient.
+Figure 1 and for other modes, in Figure 17.                            The lower 8 bits of address data for port PO is output
+By connectingCNV ss to Vss, all four modes can be                      when 1> goes to "H" state. When 1> goes to the "L"
+selected through software by changing the processor mode               state, PO retains its original I/O functions.
+bits. Connecting CNV ss to Vee automatically forces the                Port P1 's higher 8 bits of address data are output when
+microcomputer into microprocessor mode. Supplying 10V to               1> goes to "H" state and as it changes back to the "L"
+CNV ss places the microcomputer in the eva-chip mode.                  state it retains its original I/O functions. Port P2 retains
+The four different modes are explained as follows:                     its original output functions while 1> is at the "H" state,
+                                                                       and works as a data bus of 0 7 - 0 0 (including instruc-
+                                                                       tion code) while at the "L" state. Pins P3, and P3 0 out-
+FFFF 16; -_ _ _..,
+                                                                       put the SYNC and R/W control Signals, respectively
+                                                                       while 1> is in the "H" state, and ROY signal is input form·
+                                                                       P3 2 pin. When in the "L" state, P3 2 , P3, and P3 0 retain
+                                                                       their original I/O function.
+                                                                       The R/W output is used to read/write from/to the out-
+                                                                       side. When this pin is in the "H" state, the CPU reads
+                                                                       data, and when in the "L" state, the CPU writes data.
+                                                                       The SYNC is a synchronous signal which goes to the
+                                                                       "H" state when it fetches the OP COOE.
+                                                                       The ROY is ready signal input and, when it goes to "L",
+                                                                       internal clock stops and the CPU waits the data.
+                                                                       However, the oscillation does not stop.
+                                                                  (3) Microprocessor mode (10)
+         Internal                                                      After connecting CNV ss to Vee and initiating a reset,
+          RAM
+OOOO'6L-_ _-'--'                                                       the microcomputer will automatically default to this
+       Memory-             Eva-chip           Microprocessor           mode.
+       expanding           mode               mode
+       mode                                                            In this mode, port PO and P1 are used as the system
+                      The shaded area is external memory area          address bus and the original function of the I/O pins is
+                                                                       lost. Port P2 becomes the data bus (0 7 -0 0 ) and loses
+Flg.l?   External memory area In processor mode
+                                                                       its normal I/O functions. Port P3 2 , P3" and P3 0 become
+                                                                       the ROY, SYNC and R/W pins, respectively and the
+                                                                       normal I/O functions are lost.
+                                                                   (4) Eva-chip mode (11)
+                                                                       When 10V is supplied to CNVss pin, the microcomputer
+                                                                       is forced into the eva-chip mode. The main purpose of
+                                                                       this mode is to evaluate ROM programs prior to mask-
+                                                                       ing them into the microcomputer's internal ROM.
+                                                                       In this mode, the internal ROM is inhibited so the ex-
+                                                                       ternal memory is required.
+                                                                       This mode has almost the same function as the mem-
+                                                                       ory expanding mode except that it needs to attach. all
+                                                                        program memories to the outside. The relationship be-
+                                                                       tween the input level of CNV ss and the processor
+                                                                       mode is shown in Table 2.
+
+
+
+
+2-216                                                  • MITSUBISHI
+                                                     . . . . ELECTRIC
+                                                                                                     MITSUBISHI MICROCOMPUTERS
+
+                                                                                                         MS07S3-XXXSP/FP
+
+                                                                         SINGLE-CHIP 8-BIT CMOS MICROCOMPUTER
+
+
+
+
+1\
+             CM,                     0                                    0                                  1                          1
+
+
+             CMo                     0                                    1                                  1                          0
+
+
+
+
+  Port
+
+         \         ¢J
+                          Single-chip mode
+
+
+
+
+                                     I       I         ¢J
+                                                            Memory expanding mode                    Eva-chip mode
+
+
+
+
+                                                                                                                     ¢J

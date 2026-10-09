@@ -1,0 +1,2393 @@
+M                                   Apple® Desktop Bus (ADB)
+                                                                                                       AN591
+                                                                            EXPLANATION OF ADB
+  Author:          Rob McCall                                               TECHNOLOGY
+                   WFT Electronics
+  Support:         Gus Calabrese                                            ADB is an asynchronous pulse-width communication
+                   Dave Evink                                               protocol supporting a limited number of devices. All
+                   Curt Apperson                                            devices share a single I/O wire in a multi-drop mas-
+                   WFT Electronics                                          ter/slave configuration in which any slave device may
+                                                                            request service. This is accomplished through a
+                                                                            wired OR negative logic arrangement.
+INTRODUCTION                                                                The ADB cable is composed of four wires: +5V, gnd,
+The purpose of this application note is to introduce a                      ADB signal, and power-on (of the Macintosh). The
+PIC16CXXX based ADB interface which can be used                             signal wire communicates ADB input and output using
+as a basis for the development of custom ADB devices.                       an open collector type signal. The number of devices is
+This application note describes; the hardware involved,                     limited by the addressing scheme and a maximum
+a general purpose ADB protocol handler, and an                              current draw of 500 mA.
+example application task. The example software                              Every ADB device has a default address at start-up
+application supports a single key keyboard to the                           assigned by Apple. If there are device address
+Macintosh computer (Figure 1).                                             conflicts, the protocol supports the reassignment of
+                                                                            device addresses at start-up. The software in the
+OVERVIEW                                                                    PIC16CXXX discussed here is designed to easily mod-
+                                                                            ify the device address to make the PICmicro™ appear
+ADB licensing from Apple Computer.                                          as another ADB device for testing and development.
+Described as a peripheral bus used on almost all
+Macintoshes (except for the Macintosh 128, 512K, and
+Plus) for keyboards, mice, etc.
+Communication between the ADB task and the
+application task takes place using several flags. The
+flags indicate whether there is data received that needs
+to be sent to the Macintosh, or if data from the
+Macintosh needs to be sent by the application.
+
+
+
+
+FIGURE 1:         BLOCK DIAGRAM OF FUNCTIONALITY
+
+                                                     PIC16CXXX Interface Board                          Single Key
+            Macintosh
+                                                                                                        “keyboard”
+                                                       PIC16CXXX PROGRAM
+
+                                                      ADB Communication Task
+
+
+
+                                                            Application Task
+
+                      ADB Cable
+
+
+
+
+Macintosh‚ and ADB (Apple Desktop Bus) are trademarks/registered trademarks of Apple Computer, Inc.
+
+
+
+ 1997 Microchip Technology Inc.                                                                                 DS00591B-page 1
+AN591
+No device issues commands, except the host.                   ADB Elements:
+However, devices are permitted to request service
+                                                              The ADB protocol has two components, a Signal
+during specific time intervals in the signal/Command
+                                                              protocol and a Command/Data protocol. These two
+protocol. A Service Request is referred to as an “Srq”
+                                                              elements are intertwined. The Signal protocol is
+The signal protocol communication is accomplished by
+                                                              differentiated in most cases by timing periods during
+pulling the ADB line low for various time intervals.
+                                                              which the ADB signal is low. The Apple ADB
+The host controls the flow of data through issuance of        specification allows ± 3% tolerance timing of the signals
+specific signal sequences and by issuing several types        from the host and ± 30% by the devices. The signals
+of Commands. The basic command types are Talk,                are:
+Listen, Flush, and Reserved. Each command has a
+                                                              • Reset: signal low for 3 ms.
+component called a “Register” indicator which specifies
+the storage area affected by the command type. The            • Attention: signal low for 800 µs.
+following is a summary explanation of the each of the         • Sync: signal high for 70 µs.
+commands. The complete specifications are available           • Stop-to-Start-Time (Tlt): signal high for between
+from Apple, as listed in the Resources section of this          65 and 160 µs.
+application note.                                             • Service Request (Srq): signal low for 300 µs.
+
+PROTOCOL ASSUMPTIONS                                          After device initialization, in general, all communication
+                                                              through the ADB is accomplished through the following
+The ADB protocol is defined with a number of general          event sequence initiated by the host:
+assumptions about its use. These assumptions have             1.   Attention signal
+driven the general philosophy of the communication
+                                                              2.   Sync signal
+sequences. It is assumed that the devices on the ADB
+are used for human input and each are used one at a           3.   command packet
+time, such as a keyboard and a mouse. It is also              4.   Tlt signal
+assumed that the user’s transfer time from one device         5.   data packet transfer
+to another is relatively slow. This does not mean that        Depending upon the command, the device may or may
+the protocol is limited to these assumptions but rather       not respond with a data packet. Service requests are
+that the protocol is optimized towards this type of use.      issued by the devices during a very specific time at the
+This is made very evident in the host polling logic,          end of the reception of the command packet.
+where the host continues to poll the last device commu-
+nicated with until another device issues an Srq. Conse-
+quently, if another device issues an Srq, the device
+being communicated with (or the host) may need
+to retransmit.
+
+
+FIGURE 2:      TYPICAL TRANSACTION WITH COMMAND AND DATA
+
+                                                                                            Srq
+                                                                                           300 µs
+
+           Attention Signal    Sync              Command Byte -           65 µs
+           800 µs              70 µs              Eight 100 µs
+                                                    Bit Cells             '0' Stop bit
+
+                                                                          If a device in need of service issues a service
+                                                                          request, it must do so within the 65 µs of the
+                                                                          Stop Bit’s low time and maintain the line low for
+                                                                          a total of 300 µs.
+
+
+
+
+DS00591B-page 2                                                                           1997 Microchip Technology Inc.
+                                                                                                     AN591
+The command packets and the data packets are the              For example, if the Host issues the Command in binary
+constructs used to communicate the digital information.       of 0010 1100, it would be interpreted as “Device 2,
+The method of representing data bits is accomplished          Talk Register 0”. The complete definition of the Com-
+in a signal timing construct called a bit cell. Each bit      mands and data registers are described in detail in the
+cell is a 100 µs period. Data '1's and '0's are defined by    ADB specifications supplied by Apple.
+the proportions of the bit cell time period when the line
+is low and then high. A '1' bit is represented by the line    PIC16CXXX ADB PROTOCOL
+low for 35 µs, and high for 65 µs. Conversely, A '0' bit is   PROGRAM EVENT SEQUENCE
+represented by the line low for 65 µs, and high for
+35 µs (Figure 3).                                             Overview
+                                                              At power-on the host will generate a Reset signal. The
+FIGURE 3:        BIT CELLS                                    purpose of Reset is to initialize the devices on the ADB
+                                                              line. This includes determining the addresses of each
+              '0' bit                 '1' bit                 device, and resolving device address conflicts if there
+                    35 µs                                     are any. Once the device addresses are determined,
+                                        65 µs
+                                                              each device waits to be commanded or issues an Srq
+                                                              if it requires service from the host and is not being
+                                                              addressed by the host. After Reset processing, the
+            65 µs               35 µs
+                                                              ADB Protocol Task monitors the ADB line for the
+                                                              Attention/Sync/Command signal sequence. The
+          100 µs                   100 µs
+                                                              PIC16CXXX program differentiates the signal timing.
+
+                                                                Note:     The signal detection routines check to see
+The Command Packet, received from the host, follows
+                                                                          if the Application Task needs service after
+an Attention signal and a Sync signal. It consists of an
+                                                                          each event and after the falling edge of
+8-bit command byte and a '0' command stop bit. The
+                                                                          the Attention signal is detected.
+command byte may be broken down into two nibbles.
+The upper nibble is a 4-bit unique device address. The
+                                                              Command interpretation is accomplished during the
+lower nibble is defined as a Global or Reserved
+                                                              low signal time of the Stop Bit cell of the Command
+command for all devices, or a Talk, Listen, or Flush
+                                                              packet. Response to the Command must occur after
+Command for a specific device. Also contained in the
+                                                              the minimum time of the Stop to Start time period (Tlt),
+lower nibble is a “Register” designator which further
+                                                              which is 160 µs. but before the max Tlt time of 240 µs.
+details the Command. The importance of the
+                                                              When a device has issued an Srq, it waits to be
+Command Stop Bit Cell is that Srqs’ can only be issued
+                                                              addressed by the host. If the next Command received
+by a device to the host during the Command Stop Bit
+                                                              is not for that device, it issues the Srq again. The nor-
+Cell low time if the device address is not for the device
+                                                              mal response to an Srq will be a Talk Command from
+wishing service. The Host controls when Srq’s are
+                                                              the host.
+allowed through the Command protocol. The Tlt signal
+and Data Packet transfer, which are part of every             Detailed Description
+Command packet signal sequence, are overridden if an          Start-up
+Srq is issued by any device.
+                                                              Upon start-up, the Reset routine is executed, looking
+A Data Packet is the data sent to, or received from, the      for the ADB line to be high. When the line is high, an
+host. Its length is variable from 2 to 8 bytes. The           initialization routine is executed during which registers
+structure is a '1' start bit, followed by 2 to 8 bytes,       are cleared or loaded with default values. The only
+ending with a '0' stop bit. The Apple ADB                     exception is a register for generating a random address
+documentation refers to the data packet sent or               used in the address conflict resolution process.
+requested as Device Data “Registers”. This does not
+necessarily indicate a specific place in memory. In this      Reset
+PIC16CXXX implementation, each Data Register has              During a Reset condition, default values are loaded,
+been limited to two PIC16CXXX register bytes. The             such as the Default Device Address and Handler ID (a
+ADB specification allows each Data Register to hold           piece of information used by the host to identify the type
+between two and eight bytes. They are referenced in           of device). If more than one device has the same
+the Command byte as “register” 0, 1, 2, or 3. Data Reg-       address, there is a sequence of events to resolve
+ister 3 has special significance. It holds the special sta-   address conflicts described in the Implementation sec-
+tus information bits (such as whether Srq’s are               tion. The host assigns a unique address to each device.
+allowed), the Device Address, and the Device Handler          The Reset condition only takes place once, during
+ID. Commands are further defined by the “register id”         start-up, except under unusual conditions, such as test-
+sent in the Command data packet.                              ing this program.
+
+
+
+
+ 1997 Microchip Technology Inc.                                                                      DS00591B-page 3
+AN591
+Attention Routine                                                          When a device is addressed, it determines whether the
+                                                                           Command is to Talk, Listen, or Flush data, for the
+When the Reset routine is complete, the Attention
+                                                                           specified Data Register number. If the Command is for
+Signal routine is executed, looking for the line to go low
+                                                                           Data Register 3, there are special considerations
+and then high. This low time is monitored to be within
+                                                                           described for this program in the Implementation
+range of the Attention Signal Timing. If the timing is
+                                                                           section later in this application note. If the Command is
+below the minimum threshold, the routine aborts to
+                                                                           to Flush, the routine clears the data in the specified reg-
+start over again looking for the line to go low at the
+                                                                           ister. The ADB specification defines the action of the
+beginning of the Attention Signal. If the low time is
+                                                                           Flush Command to be device specific. For a Talk Com-
+exceeded, the routine aborts to the Reset
+                                                                           mand or Listen Command, the device then waits for the
+Signal routine.
+                                                                           Tlt signal. When the Command is to Talk, the device
+Sync Signal Routine                                                        sends the data bytes from the specified register and a
+When the line transitions to high, the Sync Signal                         Data Stop Bit after the Tlt minimum time. For a Listen
+routine looks for the line to go low at the start of the first             Command, the device receives data for the specified
+bit of the Command Byte. If the Sync high time is                          register.
+exceeded, the routine aborts to the Attention Signal.                      When the data has been Flushed, Sent, or Received,
+Command Routine                                                            the device then returns to monitoring for the Attention
+                                                                           signal again.
+The Command routine detects and decodes the next 8
+bit-cells as the Command Byte. The routine must first                          Note 1: In this PIC16CXXX program, the
+determine if the device address given is for itself. If the                            Application Task is serviced before
+routine determines that the device address in the                                      looking for the Attention signal.
+Command matches the stored device addresses, then                              Note 2: If at any time the line is low or high
+it may do one of two things; issue an Srq to the host by                               outside of the timing ranges, the pro-
+holding the line low, or go on to check if the Command                                 gram aborts to check if an Attention or
+is Global to all devices. If the command is Global, the                                Reset signal has been issued by the
+routine determines the specific Command and exe-                                       Host. In the case of sending Data, the
+cutes the routine for that Global Command. After exe-                                  program goes first to the Collision rou-
+cution of the Command routine it then goes back to                                     tine.
+look for the Attention Signal.
+                                                                           Sending Data to the Host
+                                                                           Data is sent only in response to a Talk Command. For
+                                                                           every data bit cell, the line is tested to go high at the
+                                                                           proper time. If the line is still low, a collision has
+                                                                           occurred. When a collision is detected, a collision flag
+                                                                           is set, and the program aborts to look for a Command
+                                                                           signal sequence.
+
+
+
+FIGURE 4:        TYPICAL TRANSACTION WITH SERVICE REQUEST
+
+
+
+
+         Attention              Command Byte
+          signal                 eight 100 µs                                                     2 to 8
+          800 µs                   Bit Cells                     160-240 µs                     Data Bytes
+
+                                                                     Tlt
+
+
+                   Sync                                65 µs                        '1' Data                    '0' Data
+                   70 µs                           '0' Stop Bit                     Start Bit                   Stop Bit
+
+
+
+
+DS00591B-page 4                                                                                      1997 Microchip Technology Inc.
+                                                                                                      AN591
+IMPLEMENTATION                                                The following are the timing ranges used by this
+                                                              program for ADB signals:
+Hardware                                                         Reset                        > 824 µs
+The hardware of this circuit is fairly simple. The circuit       Attention                    776-824 µs
+is powered via the +5V and GND wires of the ADB                  Sync                         72 µs
+cable. The ADB I/O wire is connected to pin RA0 with a           Bit Cell                     Up to 104 µs
+pull-up resistor to 5V. The T0CKI pin is tied to GND. The        '1' Bit low time             < 50 µs
+Master Clear (MCLR) pin is tied to 5V.                           '0' Bit low time             > 50 < 72 µs
+This circuit uses a 4 MHz crystal as a timing reference,         Stop bit                     0 Bit
+but higher values may be substituted. The software is            Stop to Start (Tlt)          140-260 µs
+designed to accommodate higher frequencies.                      Service Request (Srq)        300 µs
+
+A pushbutton switch is used as the single key of the            Note:     The range of values given for 0 Bit, 1 Bit
+“keyboard.” One side is connected to port RB1 with a                      and Tlt timing are slightly wider than those
+pull-up resistor to 5V, and the other side to GND. An                     given in the ADB specification.
+LED is used to indicate that the ‘key’ has been pressed,
+with the positive side connected to pin RB0 and the           How Address Conflicts are Resolved
+negative side to GND.                                         During the start-up process the host sends a “Talk
+Software                                                      Register 3” command to each device address, and
+                                                              waits for a response. When a device recognizes that
+The program designated as “Application Tasks,” has
+                                                              the Host issued a “Talk Register 3” command, it
+two sections, one is setup to switch between a protocol
+                                                              responds by sending a random address. During the
+support task for the ADB signal decode and
+                                                              transfer of each Bit Cell of the random address the
+processing, and the other section is the Application
+                                                              signal line is monitored for the expected signal level. If
+Task, in this case a single key “keyboard” routine. The
+                                                              the signal is not what is expected there is an address
+ADB protocol task has priority. The first section of the
+                                                              conflict. If the address is sent successfully, the host will
+code is the ADB protocol task, the second section is the
+                                                              respond with a Listen Command to that device. The
+Application Task, “Keyboard.” The two tasks
+                                                              command will have a new Device Address to which that
+communicate through flags which indicate that data
+                                                              device will move. The device then only responds to
+needs to be sent, or that data has been received.
+                                                              commands at the new address.
+The Keyboard Task is run at two times; 1) during the
+                                                              If there is a conflict, where two devices have the same
+Attention Signal, 2) between the end of the Data Stop
+                                                              default address, and respond at the same time, the
+Bit and the beginning of the Attention Signal. The
+                                                              device that finds the line low when it expects it to be
+Keyboard Tasks is given up to 500 µs during the
+                                                              high, immediately stops transmitting because it has
+Attention Signal, and 900 µs during the time between
+                                                              determined that a collision has occurred. The device
+the end of the Data Stop Bit and the beginning of the
+                                                              which detected the collision marks its address as
+Attention Signal. It is important to note here that the
+                                                              unmovable and therefore ignores the address move
+other tasks MUST NOT AFFECT TMR0 or the ADB
+                                                              Command, a Listen Register 3 Command. The device
+time variable that the Attention Signal is using to keep
+                                                              maintains the unmovable address condition until it has
+track of the RTCC.
+                                                              executed a successful response to the Talk Register
+Timing                                                        3 Command.
+Timing is accomplished by first loading a constant into       The host continues sending a Talk Register 3 Command
+a time variable. This constant represents the maximum         at the same address until there is a time-out and no
+limit for the current routine, which may not necessarily      device responds. This is how conflicts are resolved
+be the maximum timing range for the current Signal.           when more than one device has the same address; for
+The TMR0 value is loaded into the working register,           example, if two keyboards are connected.
+and subtracted from the time variable. The Carry bit of
+the STATUS register is tested to see if it is set or clear.
+If the bit is clear, the current timing limit has been
+exceeded. Further action is taken based on this status.
+It is important to keep the constant away from 255, or
+rollover may occur, giving inaccurate results. The pres-
+caler is applied to the TMR0 as necessary.
+
+
+
+
+ 1997 Microchip Technology Inc.                                                                       DS00591B-page 5
+AN591
+Program Sequence:                                              LOOK FOR STOP BIT (CmdStop)
+Words in parenthesis, ( ), accompanying the TITLES             Look for the Stop Bit (a '0' bit of 65 µs) that comes after
+are Labels of procedures in the corresponding code.            the last Command Byte.
+Start-up / IDLE (Start)                                        INTERPRET THE COMMAND (AddrChk)
+Start by configuring the ADB pin on PORTA and the              After the command has been received, determine if the
+Switch Pin on PORTB as inputs, and tri-stating the rest        address belongs to this device. If the address is not for
+of PORTA and PORTB as outputs.                                 this device, determine if the command is global for all
+                                                               devices and if so, do that command. If this is not a
+INITIALIZE DEFAULT VALUES WHEN THE LINE IS
+                                                               Global/Reserved Command, call the Service Request
+HIGH (Reset)
+                                                               (Srq) Routine to see if an Srq should to be issued to the
+Look for the line to be high, and when it is, clear or         Host, and do so if necessary, then return to get the Attn
+initialize registers to default values.                        Signal. If the Address is for this device determine
+LOOK FOR ATTENTION OR RESET (AttnSig)                          whether it is a Talk, Listen, or Flush Command, and go
+                                                               to the specified Command routine.
+Look for the line to go low, when it does, clear TMR0
+and time how long it is low. An Attention Signal has           SENDING DATA (Talk; calls Tlt)
+occurred if the line went high between 776 and 824 µs.         If the command was interpreted to be a Talk Command
+If the low time is measured to less than 776 µs, another       addressed to this device, call the Stop-to-Start Time
+signal has occurred and the program aborts, looking for        (Tlt) routine. When the Tlt routine has completed,
+the Attention Signal again. When the low time is mea-          determine if this is a Talk Register 3 Command. If so,
+sured to greater than 824 µs, the program interprets           return a Random Address as part of the two bytes sent
+this timing as a Reset Signal. The program starts over         to the Host. If this is not a Talk Register 3 Command,
+again, waiting for the line to be high, and when it is, per-   determine if data needs to be sent. If so, send the Data
+forms a Reset initialization.                                  Start Bit (a ‘1’), two bytes of data from the indicated
+                                                               register, and a Stop Bit (a ‘0’). If not, abort to the
+  Note:     The keyboard task is performed during the
+                                                               Attention Signal. If at any time the transmission of Data
+            Attention Signal (Task_2).
+                                                               is interrupted, abort to the Collision routine. Only after
+                                                               a complete transmission should the flags be cleared
+LOOK FOR SYNC SIGNAL (SyncSig; calls Srq)
+                                                               indicating a successful transmission.
+The Sync Signal is the high time between the rising
+edge of the Attention Signal and the falling edge of the         Note:     The ADB Specification indicates data may
+first bit of the Command.                                                  be between two and eight bytes long. The
+                                                                           limitations of the PIC16C54/55/56 parts
+GET THE COMMAND (Command; calls Get_Bit)
+                                                                           allow only two bytes of data to be sent by
+Look for the Command; a combination of eight '0' and                       this program due to limited register space.
+'1' bits. The MSb is sent first. This is achieved by calling               If more than two bytes of data must be
+the Get_Bit routine, which checks whether the                              sent, use the PIC16C57.
+maximum Bit Cell time is exceeded, if not, it looks for
+the rising edge at the end of the bit. When the bit is         RECEIVING DATA (Listen; calls Tlt)
+received, it is rotated into a variable, and the end of the
+                                                               If the command was interpreted to be a Listen
+bit cell is expected. When the falling edge of the next bit
+                                                               Command addressed to this device, call the
+is detected, the routine clears TMR0 and returns to
+                                                               Stop-to-Start Time (Tlt) routine. When the Tlt routine
+Command, which calls Get_Bit again until all 8-bits of
+                                                               has completed, receive the rest of the Data Start Bit, 2
+the Command have been received.
+                                                               Data Bytes, and Data Stop Bit. When the data has been
+ISSUE A SERVICE REQUEST IF NECESSARY (Srq)                     received, determine whether this is a Listen Register 3
+If data needs to be sent to the Host, a Service Request        Command. If this is a Listen Register 3 Command,
+(Srq) is issued by holding the line low while the Stop Bit     interpret what the command is. If this is a conditional
+is being received during the Stop-to-Start time (Tlt)          Address Change Command, determine if this Device’s
+which is between the end of the Command Stop Bit and           Address is moveable at this time. If not, abort to the
+the beginning of the Data Start Bit.                           Attention Signal. If so, change the device to the new
+                                                               address and go run the Second Application Task. If this
+                                                               is not a Listen Register 3 Command, move the data into
+                                                               the specified register and go run the Second Applica-
+                                                               tion Task.
+
+
+
+
+DS00591B-page 6                                                                          1997 Microchip Technology Inc.
+                                                                                                        AN591
+LOOK FOR THE STOP TO START TIME (Tlt)                              THE KEYBOARD TASK IS PERFORMED BETWEEN
+After the Command and Stop Bit, the Talk or Listen                 THE END OF THE DATA STOP BIT AND THE
+routines call the Tlt routine. Tlt looks for the line to go        ATTENTION SIGNAL (Task_2)
+low. If the line went low before the minimum Tlt Time,             The Keyboard Task checks to see if the key has been
+see if this is a Talk Command. If this is a Talk                   pressed. When the key is pressed, indication flags are
+Command, abort to the Collision routine. If this is a              set and an LED is turned on until the key has been
+Listen Command, abort to the Attention Signal.                     debounced. The flags allow the key to be debounced,
+If the minimum Tlt time passes and the line is high, see           Srq(s) to be sent to the Host, and indicate to the Talk
+if the Talk routine called the Tlt, if so, go wait for until the   routine that Data needs to be sent. Two bytes of data
+middle of the Tlt, then return to the Talk routine to send         are loaded into Register 0 representing a key-down
+the Data Start Bit, Data Bytes, and Stop Bit. If at any            code and a flag is set indicating to the ADB task that
+time the line goes low during the Tlt and the Talk routine         data needs be sent to the host. When the key-down
+called it, abort to the Collision routine.                         codes have been sent, the key-up codes are loaded
+                                                                   into Register 0. When the key-up codes have been sent
+If the Listen routine did call Tlt, look for the line to go low    and the key has been debounced, the flags are
+at the beginning of the Data Start Bit. When the line              cleared. The final routine of Task_2 decides whether to
+goes low, return for the rest of the Start Bit. If the line        return to the beginning or middle of the
+doesn’t go low before the maximum Tlt time is up, abort            Attention Signal.
+to the Attention Signal.
+
+
+
+
+ 1997 Microchip Technology Inc.                                                                        DS00591B-page 7
+AN591
+FIGURE 5:    APPLE DESKTOP BUS PIC16CXXX FLOWCHART
+
+                                  Start
+
+
+
+
+                         Is the ADB line high?                     Do the key-up codes
+                                                   No        No     need to be sent?
+
+                                      Yes                                      Yes
+
+
+                                                                      Load the Data
+                           Initialize registers                       registers bytes
+                                                                      with key codes
+
+
+
+
+                        Get the Attention signal
+                                                                  Set the key-up code bits
+
+
+
+
+                         Did the line go low?
+                                                   No               Debounce the key
+                                      Yes
+
+
+
+                         Set the Attention flag
+                                                                    Is the key pressed?
+                                                             No
+
+                                                                              Yes
+
+                           Has the Attention
+                        Signal maximum range
+                  Yes      been exceeded?
+                                                                      Load the Data
+                                      No                              registers bytes
+                                                                      with key codes
+
+
+
+                         Has the line gone high?
+
+                                      Yes                             Is the Attention
+                                                                          flag set?
+                                Get the
+                              Sync Signal                                      Yes
+
+
+
+
+                             Receive the
+                            Command Byte
+
+
+
+
+                          Is the command for       Yes
+                         this Device address?
+
+                                       No
+
+                          Is the command for       No
+                           Data Register 3?
+
+                                       Yes
+
+
+                        Set the Register 3 flag          A
+
+
+
+
+DS00591B-page 8                                                                 1997 Microchip Technology Inc.
+                                                                                            AN591
+FIGURE 5 (CONT.):              APPLE DESKTOP BUS PIC16CXXX FLOWCHART
+                             A
+
+                     Is this a Global/                            Is the Srq
+                   Reserved Command?             No                flag set?           No
+                                Yes                                     Yes
+
+                                                               Is the bit set in
+                     Determine which                           Data Register 3
+                     Global/Reserved                           allowing Srqs?          No
+                    Command and run
+                  the appropriate routine                               Yes
+
+
+
+                                                             Hold the line low to
+                          Is this a                        issue a Srq to the Host
+                     Listen Command?
+                                                 No
+                                Yes
+
+
+                                                                  Is this a
+                   Receive the Data from                      Talk Command?
+                  the host into temporary                                              No
+                       register bytes
+                                                                        Yes
+
+
+                                                               Is this a “Talk
+                         Is this a                         Register 3” Command?
+                                                                                       No
+                    Register 3 flag set?
+                                                 No                     Yes
+                                Yes
+
+                                                           Send bytes from Data
+                  Move the data from the                  Register 3 with the value
+                  temporary registers into                   from the Random
+                the indicated register bytes                 Address Register
+                and set the data received flag
+
+
+                                                              Does the flag set
+                                                            indicating Data need
+                         Is this a                               to be sent?           No
+                     Flush Command?
+                                                 No
+                                                                        Yes
+                                 Yes
+
+                                                           Send Data to the Host
+                                                             from the indicated
+                    Clear the indicated                     Data Register bytes
+                      register bytes
+
+
+
+                                                               Was a Collision
+                                                                 detected?
+                   Is this a Command to                                                No
+                  update Data Register 3                                Yes
+                      unconditionally?           No
+
+                               Yes
+                                                                  Set the
+                    Update the first byte                       Collision flag
+                      Data Register 3,
+                  including the status bits
+
+
+
+
+                       Is the Collision                    Clear the flag indicating
+                           flag set?                       Data needs to be sent
+                                                 Yes
+                                No
+
+
+
+                      Change to new                            Goto “Get the
+                  device address received
+                        by the host                           Attention Signal”
+
+
+
+
+ 1997 Microchip Technology Inc.                                                            DS00591B-page 9
+AN591
+SUGGESTIONS ABOUT MODIFYING                                      2.      The second application task may occur as a
+                                                                         communication task with another PIC16CXXX
+THE CODE                                                                 device by using the three other I/O lines on
+1.   If high crystal frequencies are used, a divider                     PORTA, although test code for this has not yet
+     equate (equ) at the beginning of the timing sec-                    been written. Two of the lines would be used as
+     tion of the equates allows an easy adaptation for                   ready-to-send (one for each PIC16CXXX). The
+     all established timing definitions.                                 third would be used as a data line, using low sig-
+                                                                         nals as '0' bits, and high signals as '1' bits. Addi-
+                                                                         tionally, all eight lines on PORTB may be used
+                                                                         as well.
+
+
+
+
+FIGURE 6:       SIMPLE SCHEMATIC OF THE TEST BOARD
+
+                            5V
+                                                  Optional LED              5V
+
+                                                                                      Single Key
+                                                                                      “keyboard”
+                                   5V VCC       RB0
+                                   MCLR                          10 kΩ
+                                                         RB1
+                                   T0CKI
+
+                                          PIC16CXXX
+                                                                            5V
+                                                                                               5V
+              4 MHz XTAL
+               and Caps
+                                                                                                    ADB connector
+                                                                            10 kΩ
+                                                      RA0
+                                   GND
+
+
+
+
+DS00591B-page 10                                                                               1997 Microchip Technology Inc.
+                                                                                               AN591
+RESOURCES                                                  WFT Electronics offers free assistance in procuring
+                                                           necessary ADB info. Contact Gus Calabrese, Rob
+Apple Publications and Support Software                    McCall, Dave Evink at:
+MacTech Magazine (formerly MacTutor) is a publication         4555 E. 16th Ave.
+dedicated to supporting the Macintosh. They have had          Denver, CO 80220
+several articles regarding the Apple Desktop Bus. They        303 321-1119 FAX 303-321-1119 Applelink:
+publish a CD-ROM that contains all of their articles          WFT
+from 1984 to 1992. Also, single disks are available (ask      Internet: Gus_Calabrese@onenet-bbs.orgA
+for #42).
+MacTech Magazine can be contacted at:
+                                                           AUTHOR / CREDITS
+   P.O. Box 250055                                         Rob McCall developed the majority of the PIC16CXX
+   Los Angeles, CA 90025-9555                              ADB code. He also wrote most of the application note.
+   310 575-4343 FAX 310 575-0925                           Gus Calabrese, Dave Evink, and Curt Apperson
+   Applelink: MACTECHMAG                                   supported this effort. Dave works with Gus, Rob, and
+   Internet: info@xplain.com                               Curt in developing a variety of embedded processor
+                                                           products.
+                                                           Contact Gus Calabrese, Rob McCall, Dave Evink, Curt
+Apple licenses the ADB technology. They can be
+                                                           Apperson at:
+contacted at:
+                                                              WFT Electronics
+   20525 Mariani Ave.
+                                                              4555 E. 16th Ave.
+   Cupertino, CA 95014
+                                                              Denver, CO 80220
+   Attn: Software Licensing
+                                                              303 321-1119 FAX 303-321-1119 Applelink:
+                                                              WFT
+• Apple Keyboard, extended, specification                     Internet: Gus_Calabrese@onenet-bbs.org
+  drawing #062-0168-A.
+• Apple Desktop specification drawing #
+  062-0267-E.
+• Apple Desktop connector, plug, Mini DIN
+  drawing #519-032X-A.
+• Engineering Specification, Macintosh transceiver
+  interface, ADB drawing #062-2012-A.
+• Apple keyboard, specification drawing
+  #062-0169-A.
+• Developer CD series, Tool Chest Edition, August
+  1993 contains:
+  - Folder = Tool Chest: Devices and Hardware:
+     Apple Desktop Bus
+  - ADB Analyzer
+  - ADB Parser (most complete environment)
+  - ADB Lister
+  - ADB ReInit
+  - ADB Tablet code samples
+
+
+
+
+ 1997 Microchip Technology Inc.                                                              DS00591B-page 11
+AN591
+Please check the Microchip BBS for the latest version of the source code. Microchip’s Worldwide Web Address:
+www.microchip.com; Bulletin Board Support: MCHIPBBS using CompuServe® (CompuServe membership not
+required).
+
+
+APPENDIX A:            ADB.ASM
+MPASM 01.40 Released                   ADB.ASM     1-16-1997   17:26:35            PAGE    1
+
+
+LOC OBJECT CODE        LINE SOURCE TEXT
+  VALUE
+
+                      00001         LIST     P = 16C56, n = 66,   c=132, E=0, N=60
+                      00002 ;
+                      00003 ;*************************************************************A113-0004
+                      00004 ;
+                      00005 ; ADB.ASM *** This program is for PIC16C5x microcontrollers:
+                      00006 ;
+                      00007 ;       Program:           ADB.ASM
+                      00008 ;       Revision Date:
+                      00009 ;                          1-16-97      Compatibility with MPASMWIN 1.40
+                      00010 ;
+                      00011 ;**********************************************************************
+                      00012 ;
+                      00013 ;**TESTING - The purpose of this program is to emulate a keyboard that
+                      00014 ; is Apple Desktop Bus (ADB) based. The program allows the PIC to
+                      00015 ; appear to the Macintosh computer as a keyboard with a single key.
+                      00016 ; The code isdesigned to easily modify the device address to make the
+                      00017 ; PIC appear as another ADB device,which has its own proprietary
+                      00018 ; functions.
+                      00019 ;**********************************************************************
+                      00020 ;
+                      00021 ; OVERVIEW OF ENTIRE PROGRAM:
+                      00022 ; This program is setup to switch between a communication task with the
+                      00023 ; the Apple Desktop Bus (ADB), and another application task.
+                      00024 ; The ADB communication task has priority.
+                      00025 ; All communication with the ADB is done using a single i/o line to
+                      00026 ; the PIC, line RA0 on Port A.
+                      00027 ; The second application may occur as a communication task with
+                      00028 ; another PIC chip as follows:
+                      00029 ; Communication with the second PIC may be achieved by using the three
+                      00030 ; other i/o lines on Port A. Two of the lines would be used as
+                      00031 ; ready-to-send (one for each PIC). The third would be used as a data
+                      00032 ; line, using low signals as 0 bits, and high signals as 1 bits.
+                      00033 ; Additionally, all eight lines on PORTB may be used as well.
+                      00034 ;
+                      00035 ;************************ ADB COMMUNICATION TASK *******************
+                      00036 ;
+                      00037 ;**** A BRIEF DESCRIPTION OF THE ADB COMMUNICATION SEQUENCE:
+                      00038 ;
+                      00039 ; STARTUP     ------- initialize the TMR0 prescaler & Tri-States PORTA
+                      00040 ;
+                      00041 ; Look for the following signals and/or take appropriate actions:
+                      00042 ; RESET ----------- a high line, then initialize default register values
+                      00043 ; ATTENTION ------- Attention signal, (there is enough time during this
+                      00044 ;                     signal to allow other tasks to be performed)
+                      00045 ; COMMAND --------- 8 Command bits followed by a Stop Bit
+                      00046 ; INTERPRET ------- Decide whether the Host is addressing this Device,
+                      00047 ;                     if so, decide what Command the Host issued
+                      00048 ;                     if not, see if the Command is global to all Devices,
+                      00049 ;                     also determine if the other Application needs to
+                      00050 ;                     issue a Service to the Host.
+                      00051 ; Tlt ------------ The time between the Stop bit of the Command byte and
+                      00052 ;                     the Start Time of the data being received/sent. Also
+                      00053 ;                     referred to as Stop to Start Time.
+                      00054 ; SERVICE REQUEST - in order for a Device to alert the Host that it has
+
+
+
+DS00591B-page 12                                                                     1997 Microchip Technology Inc.
+                                                                                       AN591
+                      00055 ;            data to send, the line is held down after the Command Stop
+                      00056 ;            Bit (continuing on from the Tlt).
+                      00057 ;   DATA -- a Data Start Bit, followed by 2 Data Bytes (up to as
+                      00058 ;            many as 8 Bytes), and a final Stop Bit
+                      00059 ;
+                      00060**************************************************************************
+                      00061 ;
+                      00062 ; THE FOLLOWING IS A MORE DETAILED DESCRIPTION OF THE PROGRAM SEQUENCE:
+                      00063 ;
+                      00064 ; NOTE: words in parenthesis accompanying the TITLES are Labels of
+                      00065 ; procedures corresponding in the code below.
+                      00066 ;
+                      00067 ;*** STARTUP / IDLE *** (Start) ***
+                      00068 ; Startup by setting the ADB pin on PORTA as an input and tri-stating the
+                      00069 ; rest as outputs. The routine then goes to the Reset routine.
+                      00070 ; NOTE: For testing, pin RB1 is is set as an input, and the rest of PORTB
+                      00071 ; is tri-stated as an output.
+                      00072 ;
+                      00073 ;*** INITIALIZE DEFAULT VALUES WHEN THE LINE IS HIGH *** (Reset) ***
+                      00074 ; Look for the line to be high, and when it is, initializes the
+                      00075 ; registers to default values.
+                      00076 ;
+                      00077 ;*** LOOK FOR ATTENTION OR RESET *** (AttnSig) ***
+                      00078 ; Look for the line to go low, when it does, clear the TMR0 and time how
+                      00079 ; long it’s low.
+                      00080 ; An Attention Signal has occurred when the line goes high between 776 and
+                      00081 ; 824 usecs.
+                      00082 ; If the low time is measured less than 776 usecs, another signal has
+                      00083 ; occurred and the program aborts, looking for the Attention Signal
+                      00084 ; again. When the low time is measured greater than 824 usecs, the program
+                      00085 ; interprets this timing as a Reset Signal. The program starts over
+                      00086 ; again, waiting for the line to be high, and when it is, performs a
+                      00087 ; Reset initialization.
+                      00088 ;*** OTHER APPLICATION TASKS MAY BE PERFORMED DURING
+                      00089 ;                               THE ATTENTION SIGNAL *** (Task_2) ***
+                      00090 ; The time during which the Attention signal takes place allows a second
+                      00091 ; state to occur. The other task(s) is/are given up to 500 usecs during
+                      00092 ; the Attention Signal (900 usecs are given to the 2nd Task during the
+                      00093 ; time between the end of the Data Stop Bit and the beginning of
+                      00094 ; the Attention Signal.
+                      00095 ; It is important to note here that the other task(s) MUST NOT AFFECT
+                      00096 ; THE Timer0 or the time variable (TimeVar) that the Attention Signal is
+                      00097 ; using to keep track of the TMR0.
+                      00098 ;
+                      00099 ;********** NOTE:
+                      00100 ; If at any time during the detection of the Signals below, the line is
+                      00101 ; low or high outside of timing ranges, the routine aborts to see if an
+                      00102 ; Attention or Reset signal has been issued by the Host, or, in the
+                      00103 ; case of sending Data, to the Collision routine.
+                      00104 ;
+                      00105 ;*** LOOK FOR SYNC SIGNAL *** (SyncSig) ***
+                      00106 ; The Sync Signal is the high time between the rising edge of the
+                      00107 ; Attention Signal and the falling edge of the first bit of the Command.
+                      00108 ;
+                      00109 ;*** GET THE COMMAND *** (Command; calls GetBit) ***
+                      00110 ; Look for the Command, a combination of eight 0 and 1 bits, MSB sent
+                      00111 ; first. This is achieved by calling a the GetBit routine which checks
+                      00112 ; whether the maximum time is exceeded, if not, looks for the rising edge
+                      00113 ; at the end of the bit. When the bit is received, it is rotated into a
+                      00114 ; variable, and the end of the bit cell is expected. When the falling
+                      00115 ; edge of the next bit is detected, the routine clears TMR0 and
+                      00116 ; returns to Command, which calls GetBit again until all 8 bits of the
+                      00117 ; Command have been received.
+                      00118 ;*** ISSUE A SERVICE REQUEST IF NECESSARY *** (Srq) ***
+                      00119 ; If data needs to be sent to the Host, issue a Service Request (Srq) by
+                      00120 ; holding the line low while the Stop Bit is being recieved, during the
+
+
+
+
+ 1997 Microchip Technology Inc.                                                       DS00591B-page 13
+AN591
+                   00121 ;Stop-to-Start time (Tlt) between the end of the Command Stop bit and
+                   00122 ;the beginning of the Data Start Bit.
+                   00123 ;
+                   00124 ;*** LOOK FOR STOP BIT *** (CmdStop)
+                   00125 ;Look for the Stop Bit (a 0 bit of 65 usecs) that comes after the last
+                   00126 ;Command Byte.
+                   00127 ;
+                   00128 ;*** INTERPRET THE COMMAND *** (AddrChk) ***
+                   00129 ;After the Command has been received, determine if the Address belongs to
+                   00130 ;this Device.
+                   00131 ;If the Address is not for this Device determine if the command is
+                   00132 ;global for all Devices and if so, do that command.
+                   00133 ;If this is not a Global/Reserved command, call the Service Request (Srq)
+                   00134 ;routine to see if an Srq should to be issued to the Host, and do so if
+                   00135 ;necessary, then return to get the Attn Signal.
+                   00136 ;If the Address is for this Device determine whether it is a Talk,
+                   00137 ;Listen, or Flush Command, and go to the specified command routine.
+                   00138 ;
+                   00139 ;**IF COMMAND IS TALK OR LISTEN, LOOK FOR STOP TO START TIME ** (Tlt) **
+                   00140 ;After the Command and Stop Bit (a 0 bit) the Talk or Listen routine
+                   00141 ;calls the Tlt routine:
+                   00142 ;look for the line to go low,
+                   00143 ;if the line went low before the Min. Tlt Time, see if this is a Talk
+                   00144 ;Command if this is a Talk Command, abort to the Collision routine
+                   00145 ;if this is a Listen Command, abort to the Attention Signal
+                   00146 ;if the Min. Tlt time passes & the line is high,
+                   00147 ;see the Talk routine called the Tlt,
+                   00148 ;if so, go wait for until the middle of the Tlt, then return to
+                   00149 ;Talk to send the Data Start Bit, Data Bytes, and Stop Bit.
+                   00150 ;if at any time the line goes low during the Tlt, abort to the
+                   00151 ;Collision routine
+                   00152 ;if Listen called the Tlt,
+                   00153 ;look for the line to go low as the beginning of the Data Start Bit
+                   00154 ;if the line goes low, return for the rest of the Start Bit
+                   00155 ;if the line doesn’t go low before the Max. Tlt time,
+                   00156 ;abort to the Attention Signal
+                   00157 ;
+                   00158 ;*** SENDING DATA *** (Talk) ***
+                   00159 ;If the Command was interpreted to be a Talk Command addressed to this
+                   00160 ;Device, call the Stop-to-Start Time (Tlt) routine.
+                   00161 ;When the Tlt routine has completed, determine if this is a Talk Register
+                   00162 ;3 Command. If so, and if so, return a Random Address as part of the
+                   00163 ;two bytes sent to the Host.
+                   00164 ;if this is not a Talk Register 3 Command, determine if Data needs to be
+                   00165 ;sent. If so, send the Data Start Bit (a ‘1’), two bytes of Data,
+                   00166 ;and a Stop Bit (a ‘0’). If not, abort to the Attention Signal
+                   00167 ;If at any time the transmission of Data is interrupted, abort to the
+                   00168 ;Collision routine. Only after a complete transmission should the
+                   00169 ;flags be cleared indicating a successful transmission.
+                   00170 ;NOTE: The ADB Spec. indicates data may be between 2 and 8 bytes long.
+                   00171 ;The limitations of the PIC 16C54/55/56 parts allow only 2 bytes of data
+                   00172 ;to be sent by this program due to limited register space. If more than
+                   00173 ;2 bytes of data must be sent, use the PIC16C57.
+                   00174 ;
+                   00175 ;*** RECEIVING DATA *** (Listen) ***
+                   00176 ;If the Command was interpreted to be a Listen Command addressed to this
+                   00177 ;Device, call the Stop-to-Start Time (Tlt) routine.
+                   00178 ;When the Tlt routine has completed, receive the rest of the Data
+                   00179 ;Start Bit, 2 Data Bytes, and Data Stop Bit.
+                   00180 ;When the Data has been received, determine whether this is a Listen
+                   00181 ;Register 3 Command.
+                   00182 ;if this is a Listen Register 3 Command, interpret what the Command
+                   00183 ;is. If this is a conditional Address change command, determine if
+                   00184 ;this Device’s Address is moveable at this time. If not, abort to the
+                   00185 ;Attention Signal. If so, change the Device to the new Address and
+                   00186 ;go run the Second Application Task.
+
+
+
+
+DS00591B-page 14                                                           1997 Microchip Technology Inc.
+                                                                                        AN591
+                      00187 ; if this is not a Listen Register 3 Command, move the Data into the
+                      00188 ; specified register and go run the Second Application Task.
+                      00189 ;
+                      00190 ;************************************************************************
+                      00191 ;
+                      00192 ;*** TIMING ALGORITHM ***
+                      00193 ; Timing for ADB signals is done by clearing the TMR0, loading a constant
+                      00194 ; into a time variable, subtracting the TMR0 from the variable,
+                      00195 ; This process is looped until the either the Carry Bit in the Status
+                      00196 ; Register is clear, indicating the amount of time in the time variable
+                      00197 ; has elapsed, or the condition of the data line has been met.
+                      00198 ; If the line goes high or low at an inappropriate time, an error has
+                      00199 ; occurred, and the current operation should be aborted.
+                      00200 ;
+                      00201 ; NOTE: The minimum and maximum values given below for 0 bit, 1 bit, and
+                      00202 ;        Tlt timing are slightly shorter and longer than those given in
+                      00203 ;        the ADB specification.
+                      00204 ; The following are the timing ranges used
+                      00205 ; by this program for ADB signals:
+                      00206 ; Reset ........Greater Than 824 usecs
+                      00207 ; Attention..............776-824 usecs
+                      00208 ; Sync.......................72      usecs
+                      00209 ; Bit Cell.............Up to 104 usecs
+                      00210 ;       1 Bit...............32-40    usecs
+                      00211 ;       0 Bit...............60-72    usecs
+                      00212 ; Stop bit................60-72      usecs
+                      00213 ; Stop to Start (Tlt)....140-260 usecs
+                      00214 ; Service Request (Srq)......300 usecs
+                      00215 ;
+                      00216 ;
+                      00217 ; A SOMEWHAT GRAPHICAL REPRESENTATION OF THE TIMING SIGNAL RANGES (in
+                      00218 ; usecs):
+                      00219 ; |-------|--------|--------|
+                      00220 ;         30-40    60-70      100
+                      00221 ;         1 Bit   0 Bit     End of Bit Cell
+                      00222 ;
+                      00223 ; |--------------|----------|
+                      00224 ;               140-260       300
+                      00225 ;                 Tlt         Srq1
+                      00226 ;
+                      00227 ; |----------------------------------|--------|---|--------------->
+                      00228 ; 0                                    776       824 Greater than 824....
+                      00229 ; Signal invalid in this area--------| AttnSig         Reset
+                      00230 ;
+                      00231 ;************************************************************************
+                      00232 ;
+                      00233 ;********************     THE PROGRAM BEGINS HERE    **********************
+                      00234
+                      00235      include “p16c5X.inc”    ; default EQUates for the PIC registers
+                      00001          LIST
+                      00002 ; P16C5X.INC Standard Header File, Version 3.30 Microchip Technology
+                      00224          LIST
+                      00236
+  000001FF            00237 PIC54    equ     1FFh    ; Define the Reset Vector for 16c54.
+                      00238
+  00000000            00239 NULL     equ     00h     ; used for returning nothing from a called routine
+                      00240
+  00000000            00241 LSB      equ     00h     ; Least Significant Bit
+  00000007            00242 MSB      equ     07h     ; Most Significant Bit
+                      00243
+  00000000            00244 FALSE    equ     00h     ; For Boolean tests
+  00000001            00245 TRUE     equ     01h
+                      00246
+                      00247      include “adb.equ” ; ADB EQUates
+                      00001 ;************************** ADB.EQU Header-sets up EQUates *************
+                      00002
+
+
+
+
+ 1997 Microchip Technology Inc.                                                        DS00591B-page 15
+AN591
+                   00003 ;*** TESTING *** BITS USED IN TESTING FOR I/O
+                   00004
+                   00005 ; *** BOOLEANS USED TO SELECT PART BEING USED
+                   00006                         ; Only One Part May Be selected at a time
+  00000000         00007 C54     equ     FALSE ;TRUE
+  00000000         00008 C55     equ     FALSE
+  00000001         00009 C56     equ     TRUE    ;FALSE
+  00000000         00010 C57     equ     FALSE
+                   00011
+  00000000         00012 LED     equ     00h     ; ***AN LED ON LINE RB0 INDICATES SWITCH PRESSED
+  00000001         00013 Switch equ      01h     ; ***‘Switch’ USED FOR A SWITCH ON LINE RB1 AND
+                   00014                         ; *** AS A FLAG IN FLAGS2 FOR DEBOUNCING
+                   00015
+  00000038         00016 SHIFT   equ     38h
+  00000012         00017 BANG    equ     12h
+                   00018
+  00000008         00019 DEBOUNC equ     08h ; *** #OF TIMES TO LOOP TO ALLOW DEBOUNCE OF SWITCH
+                   00020
+                   00021
+                   00022
+                   00023
+                   00024 ; *** BIT ASSIGNMENTS FOR I/O LINES & TRI-STATING
+                   00025
+  00000000         00026 ADB     equ     00h   ; Line used for ADB - pin XX (16C54)
+  00000001         00027 RA1     equ     01h   ; May be used as a Clock line TO another PIC
+  00000002         00028 RA2     equ     02h   ; May be used as a Clock line FROM another PIC
+  00000003         00029 RA3     equ     03h   ; May be used as a Data line between two PICs
+                   00030
+  00000001         00031 TRI_IN equ      01h   ; tri-state for ADB pin as input
+  00000000         00032 TRI_OUT equ     00h   ; tri-state for ADB pin as output
+                   00033
+                   00034
+                   00035 ;*** MISC. CONSTANTS
+                   00036
+  00000008         00037 BYTE    equ     08h   ; Receive 8 bits in Command; count from 8 to 0
+  00000002         00038 DEF_ADD equ     02h   ; default device address to start with (kybd)
+  00000003         00039 DEF_HND equ     03h   ; default Handler Id. to start with (std. kybd)
+  00000008         00040 OFFSET equ      08h   ; offset to RAM address of the array of ADB
+                   00041                       ; Data storage registers
+                   00042
+                   00043
+                   00044 ;*** COMMAND MASKS:          MASK BITS FROM COMMAND REGISTER FOR:
+                   00045
+  0000000F         00046 DEVMASK equ   0Fh     ;lower nibble holds Command (Talk, etc.) & Reg. #
+  000000F0         00047 ADDRMSK equ   0F0h    ;upper nibble holds the Device Address Number
+  0000000F         00048 CMDNIBL equ   0Fh     ;Command nibble from the address
+  0000000C         00049 CMDTYPE equ   0Ch     ;Upper 2 Command bits indicate Talk, Listen, etc.
+  00000003         00050 REGMASK equ   03h     ;Data Register Number bits from Command Nibble
+  0000001F         00051 FSRMASK equ   1Fh     ;FSR bits from the Command Nibble for RAM Address
+                   00052
+                   00053
+                   00054 ;*** DATA COMMAND MASKS:     MASK DATA REGISTER 3a FOR:
+                   00055
+  0000000F         00056 LOW_NBL equ     0Fh   ; Lower nibble from the 1st Data byte
+  000000F0         00057 HI_NIBL equ    0F0h   ; Upper nibble from the 1st Data byte
+                   00058
+                   00059
+                   00060 ;*** CONSTANTS FOR MASKING OUT COMMAND NIBBLES (C_ indicates Command)
+                   00061
+                   00062                       ;    used to XOR if this is a:
+  0000000C         00063 C_TALK equ      0Ch   ;    Talk Command
+  00000008         00064 C_LISTN equ     08h   ;    Listen Command
+  00000000         00065 C_RESET equ     00h   ;    Reset Command
+  00000001         00066 C_FLUSH equ     01h   ;    Flush Command
+  00000004         00067 C_RES_1 equ     04h   ;    Reserved Command 1
+  00000002         00068 C_RES_2 equ     02h   ;    Reserved Command 2
+
+
+
+
+DS00591B-page 16                                                        1997 Microchip Technology Inc.
+                                                                                        AN591
+00000003               00069 C_RES_3 equ     03h    ;   Reserved Command 3
+                       00070
+                       00071
+                       00072 ;*** DATA HANDLER ID MASKS: MASK DATA REGISTER 3b FOR:
+                       00073
+000000FF               00074 SELFTST equ    0FFh    ; Self-Test mode
+00000000               00075 LISTEN1 equ      0h    ; unconditional address change
+000000FE               00076 LISTEN2 equ    0FEh    ; address change if no collision detected
+000000FD               00077 DEV_ACT equ    0FDh    ; address change if device activator is depressed
+                       00078
+                       00079
+                       00080 ;BITS USED IN THE UPPER NIBBLE OF REGISTER 3a FOR SPECIAL ADB STATUS BITS
+                       00081
+00000004               00082 Resrvd3 equ     04h    ; reserved (Always 0)
+00000005               00083 Srq_Bit equ     05h    ; determines if Host will accept Service Requests
+00000006               00084 ExpEvnt equ     06h    ; indicates an Exceptional Event should take place
+00000007               00085 Always0 equ     07h    ; always set to 0
+                       00086
+                       00087
+                       00088 ;ADB FLAG BITS IN THE “FLAGS1” REGISTER (F1 indicates 1st Flags register)
+                       00089
+00000000               00090 F1Attn equ      00h    ; set to know if 2nd Task taking place during Attn
+00000001               00091 F1Reg3 equ      01h    ; Register 3 is being addressed
+00000002               00092 F1Talk equ      02h    ; indicates to Tlt routine this is a Talk Command
+00000003               00093 F1Stop equ      03h    ; set to indicate the Data Stop Bit is being sent
+00000004               00094 F1Lstn equ      04h   ; indicates to Tlt routine this is a Listen Command
+00000005               00095 F1Sent1 equ     05h    ; 1st byte of Data Register has been sent
+00000006               00096 F1Rcvd1 equ     06h    ; 1st byte of Data Register has been received
+00000007               00097 F1Cllsn equ     07h    ; set to indicate that a collision occurred
+                       00098
+                       00099
+                       00100 ;*** FLAG BITS IN THE “FLAGS2” REGISTER (F2 indicates 2nd Flags register)
+                       00101
+00000000               00102 F2Srq   equ     00h ; indicate that Srq should be issued
+                       00103 ;               01h Switch, defined above for PORT_B, also used as a Flag
+00000002               00104 F2DActv equ     02h ; change address if Device Activator is Depressed
+00000003               00105 F2STest equ     03h ; set to indicate a device Self Test to be performed
+00000004               00106 F2SFail equ     04h ; set to indicate that the Device Self-Test Failed
+00000005               00107 F2DRcvd equ     05h ; set when data is received for 2nd Application Task
+00000006               00108 F2DSend equ     06h ; set to indicate to Talk that Data needs to be sent
+00000007               00109 F2DMore equ     07h ;set in 2nd Task to indicate Data remains to be sent
+                       00110
+                       00111
+                       00112 ;*** TIMING DEFINITIONS
+                       00113                      ; These values currently used for clock at 4Mhz:
+00000004               00114 PrSclr1 equ     .4   ;    this is used when TMR0 is being prescaled
+00000001               00115 PrSclr2 equ     .1   ;    this is used when TMR0 is not prescaled
+                       00116
+000000C2               00117 ATT_MIN equ .776/PrSclr1 ; Attn lower limit:800 - 3% tolerance=776 usecs
+000000CE               00118 ATT_MAX equ .824/PrSclr1 ; Attn upper limit:800 + 3% tolerance=824 usecs
+0000007D               00119 TSK2MIN equ .500/PrSclr1 ; time given to 2nd Task during Attn Signal
+000000E1               00120 TSK2MAX equ .900/PrSclr1 ;time given to 2nd Task after Data Sent/Received
+00000048               00121 SYNC    equ .72/PrSclr2 ;Sync with extra tolerance after Attn detect
+00000032               00122 BIT_TST equ .50/PrSclr2 ; if time is < 50 = 1 bit, & > 50 = 0 bit
+00000048               00123 MAX_BIT equ .72/PrSclr2 ; Maximum time line can be low for a bit
+00000068               00124 BITCELL equ .104/PrSclr2 ; Maximum time for a bit cell = 104 usecs
+0000008C               00125 TLT_MIN equ .140/PrSclr2 ; Stop to Start minimum time = 140 usecs
+000000FA               00126 TLT_MAX equ .250/PrSclr2 ; Stop to Start maximum time = 260 usecs
+000000B4               00127 TLT_MID equ .180/PrSclr2 ; Stop to Start median time = 208 usecs
+0000004A               00128 SRQ_MAX equ .296/PrSclr1 ; amount of time to hold for a Service ReQuest
+                       00129
+                       00130 ;NOTE: for Timer0 timing of sending bits, some extra time is allowed for
+                       00131 ;instruction cycles between the end of the bit and the start of the next
+                       00132 ; bit
+00000016               00133 LOW1BIT equ .22/PrSclr2 ; low time for a 1 bit
+00000032               00134 HI_1BIT equ .50/PrSclr2 ; hi time for a 1 bit
+
+
+
+
+ 1997 Microchip Technology Inc.                                                       DS00591B-page 17
+AN591
+  00000038         00135 LOW0BIT equ .56/PrSclr2 ; low time for a 0 bit
+  00000014         00136 HI_0BIT equ .20/PrSclr2 ; hi time for a 0 bit
+                   00137
+                   00138
+                   00139 ;*** ADB DATA REGISTERS - 2 BYES FOR EACH OF REGISTERS 0, 1, 2, and 3
+                   00140
+0008               00141 ADB_REG ORG    08h     ; ORIGIN FOR ADB DATA REGISTERS
+0008               00142 Reg0a   RES    01h     ; 8
+0009               00143 Reg0b   RES    01h     ; 9
+000A               00144 Reg1a   RES    01h     ; A
+000B               00145 Reg1b   RES    01h     ; B
+000C               00146 Reg2a   RES    01h     ; C
+000D               00147 Reg2b   RES    01h     ; D
+000E               00148 Reg3a   RES    01h     ; E
+000F               00149 Reg3b   RES    01h     ; F
+                   00150
+                   00151
+                   00152 ;* VARIABLE REGISTERS FOR STORAGE, FLAGS, THE TIME VARIABLE,
+                   00153 ; THE COUNTER, & RANDOM VALUES
+                   00154
+0010               00155 STORAGE ORG    10h ; ORIGIN FOR MISC. DATA VARIABLES
+0010               00156 TmpReg1 RES    01h ; 10 - temporary registers where Data is sent from &
+0011               00157 TmpReg2 RES    01h ; 11 - received; NOTE: THESE 2 MUST BE IN THIS ORDER
+0012               00158 RegNum RES     01h ; 12 - holds current ADB Data Reg.#-NOT a RAM address
+0013               00159 RAMaddr RES    01h ; 13 - holds RAM address of ADB Data Reg.#
+0014               00160 Flags1 RES     01h ; 14 - two Flags registers used by ADB & 2nd
+0015               00161 Flags2 RES     01h ; 15 -    Application Task
+0016               00162 CmdByte RES    01h ; 16 - holds the Command Byte
+0017               00163 BitCntr RES    01h ; 17 - counts down when sending or receiving bits
+0018               00164 Random RES     01h ; 18 - stores Random Address sent in Talk routine
+0019               00165 TimeVar RES    01h ; 19 - used with TMR0 for all ADB timing
+001A               00166 Tsk2Var RES    01h ; 1A - used with TMR0 for timing during 2nd Task
+                   00167
+                   00168
+                   00169 ;*** REGISTERS STILL AVAILABLE
+                   00170
+001B               00171 TmpCtr1 RES    01h ; 1B
+001C               00172 TmpFlg1 RES    01h ; 1C
+001D               00173 TmpFlg2 RES    01h ; 1C
+001E               00174 TmpFlg3 RES    01h ; 1D
+001F               00175 TmpFlg4 RES    01h ; 1E
+                   00176
+                   00177
+0000               00178 PROGRAM ORG      00h     ; origin for program
+                   00248     include “adb.sub”    ; ADB Sub-Routines - these must be included
+                   00001 ;***********************************************************************
+                   00002 ;***********************************************************************
+                   00003 ;   ******            THE FOLLOWING ARE SUB-ROUTINES             *******
+                   00004 ;   ******              CALLED BY THE MAIN PROGRAM               *******
+                   00005 ;***********************************************************************
+                   00006 ;***********************************************************************
+                   00007
+                   00008 ;*** SWITCH PRESCALER BETWEEN WDT AND Timer0 *** (PrScale, NoPrScl) ***
+                   00009 ;*** THIS PROCEDURE, DOCUMENTED IN SPEC. SHEET SECTION 9.1, IS INTENDED
+                   00010 ;*** TO PREVENT UNEXPECTED RESET CONDITION
+                   00011
+                   00012 ;*** PrScale ROUTINE CALLED AT END OF AttnSig AND Srq SIGNALS
+0000 0004          00013 PrScale clrwdt               ; Change prescaler from WDT to TMR0
+0001 0C01          00014         movlw    b’00000001’ ; BINARY - set to prescale TMR0
+0002 0002          00015         option               ; Clear 4th bit from right to select TMR0
+0003 0061          00016         clrf     TMR0        ; last 3 bits set prescale value as 1:4
+0004 0800          00017         retlw    NULL        ; this gives a good ratio to monitor the
+                   00018                              ; timing for Reset and Attention signals and
+                   00019                              ; the 2nd Application Task
+                   00020
+                   00021 ;***NoPrScl ROUTINE CALLED AT BEGINNING OF SyncSig AND END OF Srq SIGNALS
+
+
+
+
+DS00591B-page 18                                                          1997 Microchip Technology Inc.
+                                                                                       AN591
+0005 0061             00022 NoPrScl clrf    TMR0        ; Change prescaler from TMR0 to WDT
+0006 0C08             00023         movlw   b’00001000’ ; Set 4th bit from right to select WDT
+0007 0002             00024         option
+0008 0004             00025         clrwdt
+0009 0C08             00026         movlw   b’00001000’
+000A 0002             00027         option
+000B 0800             00028         retlw   NULL
+                      00029
+                      00030 ;***********************************************************************
+                      00031
+                      00032 ;*GET INCOMING BIT & INTERPRET WHETHER IT’S A ‘1’ OR A ‘0’ *** (Get_Bit)*
+                      00033 ;*** Get_Bit CALLED BY COMMAND AND LISTEN ROUTINES
+                      00034 ; Get the bit, find out whether it’s less than or greater than 50 usecs,
+                      00035 ; if < than 50 usecs, it’s a ‘1’ bit
+                      00036 ; if > than 50 usecs, it’s a ‘0’ bit
+                      00037 ; if it’s a ‘1’ bit, set LSB in the reg. pointed to by the FSR (Command
+                      00038 ; Byte) if it’s a ‘0’ bit, do nothing to the LSB
+                      00039 ; then look for the end of the Bit Cell (104 usecs max.)
+                      00040 ; if the maximum Bit time of (72 usecs) or maximum Bit Cell time is
+                      00041 ; exceeded, abort to the Attn Signal
+                      00042
+000C 0201             00043 Get_Bit movf   TMR0,W ; Check the time, then check if the line went high:
+000D 0099             00044         subwf TimeVar,W ; See if more than BIT_TST usecs have passed
+000E 0703             00045         btfss STATUS,C ; if not, check whether the line went high
+000F 0AAB             00046         goto   AttnSig   ; if so, abort to the Attn Signal
+0010 0705             00047         btfss PORTA,ADB ; Check whether the line went high
+0011 0A0C             00048         goto   Get_Bit   ; if line is still low, loop again
+0012 0C32             00049         movlw BIT_TST    ; if line went high, see if it’s a ‘1’ or a ‘0’
+0013 0039             00050         movwf TimeVar    ; as the bit has not yet been determined yet,
+0014 0400             00051         bcf    INDF,LSB ; ensure the LSB in the indirect address is ‘0’
+0015 0201             00052         movf   TMR0,W    ; Get the time
+0016 0099             00053         subwf TimeVar,W ; if time < 50 usecs, it’s a ‘1’ bit
+0017 0603             00054         btfsc STATUS,C ; if time > 50 usecs and < 72, it’s a ‘0’ bit
+0018 0500             00055         bsf    INDF,LSB ; if it’s a 1, set LSB in the address FSR points
+0019 0C68             00056         movlw BITCELL    ; to Check whether the Max. Bit Cell time of
+001A 0039             00057         movwf TimeVar    ; 104 usecs has been exceeded
+001B 0201             00058 CellChk movf   TMR0,W    ; Check the time, then check the line
+001C 0099             00059         subwf TimeVar,W ; See if more than Max. Bit Cell usecs have
+001D 0703             00060         btfss STATUS,C; passed if not, look for the line to go low again
+001E 0AAB             00061         goto   AttnSig   ; if so, abort to the Attn Signal or Reset
+001F 0605             00062         btfsc PORTA,ADB ; Check the line for the start of another bit
+0020 0A1B             00063         goto   CellChk   ; if the line is still high, loop CelChk1 again
+0021 0061             00064         clrf   TMR0      ; if the line went low, clear the TMR0 & return
+0022 0800             00065         retlw NULL       ; for another bit or to interpret the Command
+                      00066
+                      00067 ;***********************************************************************
+                      00068 ;* DETERMINE IF THIS IS A GLOBAL COMMAND TO ALL DEVICES *** (Globals) *
+                      00069 ;*** Globals CALLED BY AddrChK
+                      00070
+0023 0211             00071 Globals movf   TmpReg2,W ; Check whether the Command is for all devices
+0024 0F04             00072         xorlw C_RES_1    ; retrieve the Command Type (the upper 2 bits
+0025 0643             00073         btfsc STATUS,Z ; of the Command nibble)
+0026 0BC4             00074         goto   Reserv1   ; test for this being the first Reserved
+0027 0210             00075         movf   TmpReg1,W ; Command retrieve the whole Command Nibble
+0028 0F02             00076         xorlw C_RES_2 ; test for this being the second Reserved Command
+0029 0643             00077         btfsc STATUS,Z
+002A 0BC5             00078         goto   Reserv2
+002B 0210             00079         movf   TmpReg1,W ; retrieve the whole Command Nibble
+002C 0F03             00080         xorlw C_RES_3    ; test for this being the third Reserved Command
+002D 0643             00081         btfsc STATUS,Z
+002E 0BC6             00082         goto   Reserv3
+002F 0F00             00083         xorlw C_RESET    ; test for this being Reset Command
+0030 0643             00084         btfsc STATUS,Z
+0031 0A96             00085         goto   Reset
+0032 0800             00086         retlw NULL
+                      00087
+
+
+
+
+ 1997 Microchip Technology Inc.                                                      DS00591B-page 19
+AN591
+                   00088 ;***********************************************************************
+                   00089
+                   00090 ;* MASK OUT COMMAND NIBBLE AND REG.# BITS FROM THE COMMAND *** (MaskCmd)*
+                   00091 ; NOTE: This routine should only be called once during any single ADB
+                   00092 ; transaction, from either AddrChk or CmmdChk
+                   00093
+0033 0216          00094 MaskCmd movf CmdByte,W ; Mask the Command to save the Data Reg. # bits &
+0034 0E0F          00095         andlw CMDNIBL    ; the Command Type bits (Listen, Talk, etc.):
+0035 0030          00096         movwf TmpReg1    ; save the Command nibble
+0036 0E0C          00097         andlw CMDTYPE    ; mask the upper 2 Command Type bits (Talk, etc.)
+0037 0031          00098         movwf TmpReg2    ; save the upper 2 Command Type bits
+0038 0216          00099         movf CmdByte,W : extract the Data Register number:
+0039 0E03          00100         andlw REGMASK    ; mask out Data Reg. number from Command Nibble
+003A 0032          00101         movwf RegNum     ; save the Data Reg. bits
+003B 0024          00102         movwf SR         ; save pointer to Data Reg. in File Select Reg.
+                   00103                          ; in order to setup RAM address where start
+                   00104                          ; of Data for this Reg. will be stored
+003C 0403          00105 SaveRAM bcf      STATUS,C; clear Carry bit so it doesn’t wrap around
+003D 0364          00106         rlf      FSR,F   ; multiply by 2 to get 1st Byte of RAM addr
+003E 0564          00107         bsf      FSR,03h ; add array offset for Send/Receive/Flush Reg.
+003F 0204          00108         movf     FSR,W   ; by setting bit of 1st RAM address, which
+0040 0E1F          00109         andlw    FSRMASK ; is ORG’d in ADB.EQU equates
+0041 0033          00110         movwf    RAMaddr ; mask out the RAM address of Data Reg. Number
+0042 0800          00111         retlw    NULL    ; save RAM address of Data Reg. and return
+                   00112
+                   00113 ;************************************************************************
+                   00114
+                   00115 ;*** ISSUE A SERVICE REQUEST IF NECESSARY *** (Srq; may call LineLow) ***
+                   00116 ;*** CALLED BY AddrChk
+                   00117 ; see if the Srq Flag is set, if not, return, otherwise:
+                   00118 ; change the prescaler to TMR0 since this takes longer than 255 usecs,
+                   00119 ; load the SRQTIME of 300 usecs into the TimeVariable,
+                   00120 ; call LineLow to:
+                   00121 ; keep checking the time to see if 300 usecs have passed,
+                   00122 ; let the line go high again,
+                   00123 ; and see if the line is high, and if not, abort, if it is,
+                   00124 ; change the prescaler back to WDT, and return
+                   00125
+0043 0715          00126 Srq     btfss    Flags2,F2Srq ; see if the Srq flag is set,
+0044 0800          00127         retlw    NULL         ; if not, return
+0045 0900          00128         call     PrScale      ; switch the prescaler to TMR0
+0046 0C00          00129         movlw    TRI_OUT      ; tri-state PORTA to make the ADB an output
+0047 0005          00130         tris     PORTA
+0048 0C4A          00131         movlw    SRQ_MAX
+0049 0976          00132         call     LineLow
+004A 0905          00133         call     NoPrScl      ; change the prescaler back to WDT
+004B 0800          00134         retlw    NULL
+                   00135
+                   00136 ;************************************************************************
+                   00137
+                   00138 ;*** Tlt - TIME FROM STOP BIT TO START BIT *** (Tlt) ***
+                   00139 ;*** CALLED BY EITHER Talk OR Listen ROUTINES
+                   00140 ; Loop checking the time, then checking the line to see if it went low
+                   00141 ; if at any time the line goes low,
+                   00142 ; see if this is a Talk Command,
+                   00143 ; if it is a Talk Commmand, go to the Collision routine
+                   00144 ; if the line goes low before the minimum Tlt time, abort to Attn Signal
+                   00145 ; if the line is high longer than TLT_Min usecs,
+                   00146 ; see if this is a Talk Command, and if it is, wait for the mid-point,
+                   00147 ; and return to Send the Start Bit, Data Bytes, & the Stop Bit
+                   00148 ; if it’s not a Talk Command, see if it’s a Listen Command, and if so,
+                   00149 ; load Tlt_Max for TimeVariable, and look for the line to go
+                   00150 ; low as the beginning of the Start Bit,
+                   00151 ; if more than Tlt_Max usecs pass, abort to Attn Signal
+                   00152 ; if the line goes low and this is a Listen Command,
+                   00153 ; clear the TMR0 & return to get the rest of the Start Bit
+
+
+
+
+DS00591B-page 20                                                          1997 Microchip Technology Inc.
+                                                                                        AN591
+                     00154
+004C 0C8C            00155 Tlt     movlw   TLT_MIN        ; Look for Stop-to-Start-Time, Tlt
+004D 0039            00156         movwf   TimeVar        ; Check the time, then check the line
+004E 0201            00157 TltChk1 movf    TMR0,W         ; See if more than TLT_MIN usecs have passed
+004F 01B8            00158         xorwf   Random,F       ; (ensure the Talk R3 address is Random with
+0050 0099            00159         subwf   TimeVar,W      ; XOR) by checking whether Carry bit is set
+0051 0703            00160         btfss   STATUS,C       ; after subtraction
+0052 0A5D            00161         goto    ChkFlag        ; if TLT_MIN usecs passed, see what Command
+0053 0605            00162         btfsc   PORTA,ADB      ; this is if not, check whether the line went
+0054 0A4E            00163         goto    TltChk1        ; low if the line is still high, keep looping
+0055 0654            00164         btfsc   Flags1,F1Talk; if line went low, see if this is a Talk
+0056 0B5A            00165         goto    Collisn        ; Command if it is, there was a Collision,
+0057 0201            00166         movf    TMR0,W         ; abort otherwise, check the time
+0058 0099            00167         subwf   TimeVar,W      ; see if TLT_MIN usecs passed,
+0059 0703            00168         btfss   STATUS,C       ; if not, abort to Attn Signal, too little
+005A 0AAB            00169         goto    AttnSig        ; time passed when the line went low
+005B 0061            00170         clrf    TMR0           ; if it’s not a Talk Command, clear the TMR0
+005C 0800            00171         retlw   NULL           ; and return for the rest of the Start Bit
+                     00172
+005D 0654            00173 ChkFlag btfsc   Flags1,F1Talk ; Check whether to Talk or Listen
+005E 0A6D            00174         goto    TltTalk         ; if Talk, wait for mid-point of Tlt time
+005F 0794            00175         btfss   Flags1,F1Lstn ; if Listen, continue to look for Start Bit
+0060 0800            00176         retlw   NULL            ; if neither flag is set, abort, something’s
+0061 0CFA            00177         movlw   TLT_MAX         ; wrong Load TimeVariable to check for
+0062 0039            00178         movwf   TimeVar         ; upper limit of Tlt time
+0063 0201            00179 TltChk2 movf    TMR0,W          ; See if TLT_MAX usecs have been exceeded
+0064 0099            00180         subwf   TimeVar,W       ; by checking whether Carry bit is set
+0065 0703            00181         btfss   STATUS,C        ; after subtraction
+0066 0AAB            00182         goto    AttnSig         ; if so, abort to Attn Signal
+0067 0605            00183         btfsc   PORTA,ADB       ; if not, check whether the line went low
+0068 0A63            00184         goto    TltChk2         ;if line is still high, check the time again
+0069 0654            00185         btfsc   Flags1,F1Talk ;if line went low, see if this is a Talk
+006A 0B5A            00186         goto    Collisn         ; Command if so, there was a Collision
+006B 0061            00187         clrf    TMR0            ; if it’s not a Talk Command, return to get
+006C 0800            00188         retlw   NULL            ; the rest of the Start Bit from Host
+                     00189
+006D 0CB4            00190 TltTalk movlw   TLT_MID         ; Load TimeVariable so Talk will send Start
+006E 0039            00191         movwf   TimeVar         ; Bit at about the mid-point of the Tlt
+006F 0201            00192 TltChk3 movf    TMR0,W          ; See if TLT_MID usecs have been exceeded
+0070 0099            00193         subwf   TimeVar,W       ; by checking whether Carry bit is set
+0071 0703            00194         btfss   STATUS,C        ; after subtraction
+0072 0800            00195         retlw   NULL         ; if time was exceeded, return to send Start Bit
+0073 0605            00196         btfsc   PORTA,ADB       ; if not, check whether the line went low
+0074 0A6F            00197         goto    TltChk3         ; if line is still high, check the time again
+0075 0B5A            00198         goto    Collisn         ; if the line went low, abort to Collision
+                     00199
+                     00200 ;***********************************************************************
+                     00201
+                     00202 ;*** MAKE LINE GO LOW TIME IN TimeVar AS A ‘1’ OR ‘0’ BIT***(LineLow)***
+                     00203 ;*** CALLED BY Talk OR Srq
+                     00204
+0076 0039            00205 LineLow movwf   TimeVar      ;
+0077 0201            00206 Low_Tmp movf    TMR0,W       ; Check the clock,
+0078 0099            00207         subwf   TimeVar,W    ; loop until TimeVar usecs have passed
+0079 0603            00208         btfsc   STATUS,C;
+007A 0A77            00209         goto    Low_Tmp      ;
+007B 0C01            00210         movlw   TRI_IN       ; Tri-state PORTA to make ADB line an input
+007C 0005            00211         tris    PORTA        ; again and let the line go high
+007D 0061            00212         clrf    TMR0         ; and clear TMR0
+007E 0000            00213         nop                  ; Allow the ADB Port line to stabilize
+007F 0000            00214         nop                  ; Allow the ADB Port line to stabilize
+0080 0705            00215         btfss   PORTA,ADB    ; check if the line is still low, if so, a
+0081 0B5A            00216         goto    Collisn      ; Collision occurred
+0082 0800            00217         retlw   NULL    ; if not, return to load high time for rest of bit
+                     00218
+                     00219 ;* MAKE LINE GO HIGH FOR REST OF BIT CELL TIME IN TimeVar *** (LineHi)*
+
+
+
+
+ 1997 Microchip Technology Inc.                                                       DS00591B-page 21
+AN591
+                   00220 ;*** CALLED BY Talk
+                   00221
+0083 0039          00222 LineHi movwf    TimeVar ; Let the line go high for a pre-designated time
+0084 0201          00223 Hi_Tmp movf     TMR0,W    ; Check the clock,
+0085 0099          00224         subwf   TimeVar,W; loop until TimeVar usecs have passed
+0086 0603          00225         btfsc   STATUS,C ;
+0087 0A84          00226         goto    Hi_Tmp    ;
+0088 0705          00227         btfss   PORTA,ADB; check if the line is still high,
+0089 0B5A          00228         goto    Collisn ; if not, a Collision occurred, Abort
+008A 0674          00229         btfsc   Flags1,F1Stop; if this is the end of the Data Stop Bit,
+008B 0800          00230         retlw   NULL      ; don’t let the line go low again, just return
+008C 0C00          00231         movlw   TRI_OUT ; if still high, start sending a bit to the Host
+008D 0005          00232         tris    PORTA     ; tri-state PORTA to make the ADB an output and
+008E 0061          00233         clrf    TMR0      ; return
+008F 0800          00234         retlw   NULL      ;
+                   00235
+                   00236 ;************************************************************************
+                   00237 ;************************************************************************
+                   00238 ;   ******                    END OF SUB-ROUTINES                *******
+                   00239 ;************************************************************************
+                   00240 ;************************************************************************
+                   00249                           ; here to ensure being in the first
+                   00250                           ; half of the memory page when called.
+                   00251
+                   00252 IntData macro DataCmd,Routine ; Macro goes to an appropriate Listen Reg.3
+                   00253         movf    TmpReg2,W ; interprets the Data Command received by
+                   00254         xorlw   DataCmd     ; comparing the 2nd byte to a Data
+                   00255         btfsc   STATUS,Z ; Command constant
+                   00256         goto    Routine     ; it then goes to the appropriate routine
+                   00257         endm
+                   00258
+                   00259 ;
+                   00260 ;*** CONDITIONAL ASSEMBLY DETERMINED BY LIST DIRECTIVE
+                   00261 ;
+                   00262         ifdef       __16C56
+                   00263         include “5657mcro.mod”       ; macros for the 2nd Application Task
+                   00001 ;
+                   00002 ;*** LoadEm MACRO USED FOR TESTING DURING 2ND APPLICATION TASK
+                   00003 ;*** ONLY FOR PART 16c56/57
+                   00004 ;
+  00000004         00005 H       equ     04h      ; *** THESE ARE USED AS KEYS PRESSED WHEN PART
+  0000000E         00006 E       equ     0Eh      ; ***    IS SELECTED FOR 16C56/57
+  00000025         00007 L       equ     25h
+  0000001F         00008 O       equ     1Fh
+  00000031         00009 SP      equ     31h
+  0000000D         00010 WW      equ     0Dh      ; W is already defined in the PICREG5X.EQU file
+  0000000F         00011 R       equ     0Fh
+  00000002         00012 D       equ     02h
+  00000024         00013 RETRN   equ     24h
+  000000FF         00014 FILLCHR equ     0FFh     ; ‘fill character’ as described in spec.
+                   00015 ;
+                   00016 ;
+                   00017 LoadEm macro    Ctr,Bit,Dest,RegA,RegB; Macro used to load registers and
+                   00018         btfss   Ctr,Bit         ; set flags for Key-Up Transition Codes
+                   00019         goto    Dest            ; Bits are cleared as the data is sent
+                   00020         movlw   Reg0a
+                   00021         movwf   FSR
+                   00022         movlw   RegA            ; load data to be sent from register A
+                   00023         movwf   INADDR
+                   00024         incf    FSR,F
+                   00025         movlw   RegB            ; load data to be sent from register B
+                   00026         movwf   INADDR          ; load data to be sent from register B
+                   00027         bsf     Flags2,F2DSend; Data now needs to be sent to the host
+                   00028         bsf     Flags2,F2Srq ; Until all data has been sent, Srq’s may
+                   00029         btfsc   Flags2,F2STest; be sent. See if Key Transition Codes
+                   00030         goto    KeyUp           ; should be sent if so, go set the bits
+
+
+
+
+DS00591B-page 22                                                        1997 Microchip Technology Inc.
+                                                                                        AN591
+                        00031       bsf     Flags2,F2STest; if not, set bits so they’ll be next time
+                        00032       bcf     Ctr,Bit        ; clear the bit so next data will be sent
+                        00033       goto    DBounce        ; and go debounce the switch
+                        00034       endm
+                        00035
+                        00036
+                        00037
+                        00264       endif                   ;   the program is for a 16C56
+                        00265       ifdef      __16C57      ;   or 16C57 part
+                        00266       include “5657mcro.mod”
+                        00267       endif
+                        00268
+                        00269 ;*******************************************************************
+                        00270 ;*******************************************************************
+                        00271 ;               THE MAIN PROGRAM STARTS BELOW
+                        00272 ;*******************************************************************
+                        00273 ;*******************************************************************
+                        00274
+0090 0C01               00275 Start movlw   TRI_IN     ; Start off by making the ADB pin an
+0091 0005               00276       tris    PORTA      ; input on PORTA
+0092 0405               00277       bcf     PORTA,ADB ; make line will go low when tris’d as an output
+                        00278
+                        00279 ; *** THIS I/O SETUP ROUTINE IS USED FOR TESTING WITH AN LED ON RB0
+                        00280 ; *** AND A SWITCH ON RB1
+0093 0C02               00281 TSTING1 movlw   b’00000010’; Make RB0 an output (for the LED) and
+0094 0006               00282       tris    PORTB      ; RB1 an input (for the normally open switch)
+0095 0406               00283       bcf     PORTB,LED ; Make sure the LED is off to begin with
+                        00284
+                        00285 ;*******************************************************************
+                        00286
+0096 0705               00287 Reset btfss   PORTA,ADB ; Reset Signal - loop until the line is high,
+0097 0A96               00288       goto    Reset      ; then initialize Registers
+                        00289
+0098 0070               00290 Init clrf     TmpReg1    ; Initialization routine
+0099 0071               00291       clrf    TmpReg2    ; Clear variables
+009A 0072               00292       clrf    RegNum     ; NOTE: No need to clear variable register
+009B 0073               00293       clrf    RAMaddr    ; ‘Random’ as it is XOR’d in other routines
+009C 0074               00294       clrf    Flags1     ; to produce a random Address for the ‘Talk
+009D 0075               00295       clrf    Flags2     ; Reg. 3’ Command
+009E 0077               00296       clrf    BitCntr
+009F 0068               00297       clrf    Reg0a      ; Clear ADB Storage Data Register Variables
+00A0 0069               00298       clrf    Reg0b
+00A1 006A               00299       clrf    Reg1a
+00A2 006B               00300       clrf    Reg1b
+00A3 006C               00301       clrf    Reg2a
+00A4 006D               00302       clrf    Reg2b
+                        00303
+00A5 0C02               00304       movlw   DEF_ADD    ; Register 3 has special Default Data set at
+00A6 002E               00305       movwf   Reg3a      ; Reset: load Register 3a with Default Device
+00A7 05AE               00306       bsf     Reg3a,Srq_Bit; Address allow Service Requests of Host
+00A8 05CE               00307       bsf     Reg3a,ExpEvnt; include the Exceptional Event bit as
+                        00308                          ;default * NOTE: at this time, this Device
+                        00309                          ; doesn’t process for Exceptional Events
+00A9 0C03               00310       movlw   DEF_HND    ;
+00AA 002F               00311       movwf   Reg3b      ; load Register 3b with Default Device Handler ID
+                        00312
+                        00313 ;*******************************************************************
+                        00314
+                        00315 ;*** LOOK FOR ATTENTION OR RESET *** (AttnSig) ***
+                        00316 ; Look for the line being low, when it is, see if the line went high.
+                        00317 ; During that time, allow the 2nd Application Task to be performed for a
+                        00318 ; limited amount of time, then return to Attn Signal
+                        00319 ; if the line went high, did it go high within the 776-824 usec range?
+                        00320 ; if so, go on to get the Command
+                        00321 ; if not, goto the Reset routine
+                        00322 ; IN DETAIL:
+
+
+
+
+ 1997 Microchip Technology Inc.                                                        DS00591B-page 23
+AN591
+               00323 ;   look at the line
+               00324 ;   if the line is not yet low,
+               00325 ;   loop until it goes low, & clear the TMR0
+               00326 ;   Loop with Minimum Time: check the time
+               00327 ;   if the time is less than the Attention Minimum usecs,
+               00328 ;   check whether the line has gone high,
+               00329 ;   if the line has not gone high,
+               00330 ;   loop again checking the time
+               00331 ;   if the line has gone high,
+               00332 ;   check whether the Min. usecs have passed
+               00333 ;   if not, Abort; too little time went by.
+               00334 ;   if so, go on to look for the Sync signal
+               00335 ;   Loop with Maximum Time: load the Maximum Time Variable & check
+               00336 ;   the time if the time is less than the Attention Maximum usecs,
+               00337 ;   check whether the line has gone high,
+               00338 ;   if the line has not gone high,
+               00339 ;   loop again checking the time
+               00340 ;   if the line has gone high before Max. Attention usecs have passed,
+               00341 ;   go on to look for the Sync signal
+               00342 ;   if the time is greater than the Attention Maximum usecs,
+               00343 ;   abort to Reset
+               00344
+               00345 ;***********************************************************************
+               00346
+00AB 0201      00347 AttnSig movf   TMR0,W         ; Look for Attn between ATT_MIN - ATT_MAX usecs
+00AC 07F4      00348         btfss Flags1,F1Cllsn; this is a good time to use the TMR0 and
+00AD 01B8      00349         xorwf Random,F        ; Pseudo-Random Address
+00AE 0605      00350         btfsc PORTA,ADB       ; See if the line went low
+00AF 0AAB      00351         goto   AttnSig        ; Loop to AttnSig until the line goes low
+00B0 0900      00352         call   PrScale        ; Switch prescaler to TMR0 for > 250 usec count
+               00353                               ; during Attn Signal
+00B1 0CC2      00354         movlw   ATT_MIN       ;
+00B2 0039      00355         movwf   TimeVar       ; use TimeVariable to subtract from ATT_MIN usecs
+               00356
+00B3 0076      00357 CleanUp clrf    CmdByte       ; Clear the Command Byte
+00B4 0070      00358         clrf    TmpReg1       ; Clear the temporary Data registers
+00B5 0071      00359         clrf    TmpReg2       ; NOTE: No need to clear variable register
+00B6 0072      00360         clrf    RegNum        ; ‘Random’ clear the current Register Number
+00B7 0073      00361         clrf    RAMaddr       ; register clear the register holding the RAM
+               00362                               ; Address of the 1st byte of where Data is stored
+00B8 0514      00363         bsf     Flags1,F1Attn; Set this bit to indicate to the 2nd Task
+               00364                               ; that it should Return to the AttnMin routine
+00B9 0434      00365         bcf     Flags1,F1Reg3     ; Clear Flags: Data-for-Register 3
+00BA 0454      00366         bcf     Flags1,F1Talk     ; Talk
+00BB 0474      00367         bcf     Flags1,F1Stop     ; Data-Stop-Bit-is-being-sent
+00BC 0494      00368         bcf     Flags1,F1Lstn     ; Listen
+00BD 04B4      00369         bcf     Flags1,F1Sent1    ; Sent-1st-Byte
+00BE 04D4      00370         bcf     Flags1,F1Rcvd1    ; Received-1st-Byte
+               00371
+00BF 0C7D      00372         movlw   TSK2MIN       ; load Task 2 Time Variable with amount allowed
+00C0 003A      00373         movwf   Tsk2Var       ; during Attn Signal
+00C1 0BCB      00374         goto    Task_2        ; This space allows running a second application
+               00375                               ; NOTE: BE SURE TO RETURN TO ATTNMIN BEFORE 750
+               00376                               ; usecs HAVE PASSED, AND DON’T LET THE OTHER
+               00377                               ; APPLICATION AFFECT THE Timer0 or TimeVar.
+               00378
+00C2 0201      00379 AttnMin movf    TMR0,W        ; Check the time, then check the line
+00C3 0099      00380         subwf   TimeVar,W     ; See if more than ATT_MIN usecs have passed
+00C4 0703      00381         btfss   STATUS,C      ; if not, check the line
+00C5 0ACD      00382         goto    AttnMax       ; if so, go check time/line again in AttnMax
+00C6 0705      00383         btfss   PORTA,ADB     ; Check for line being high & if so, check time
+00C7 0AC2      00384         goto    AttnMin       ; if line is still low, loop again
+00C8 0201      00385         movf    TMR0,W        ; if line is high, see if time is in range
+00C9 0099      00386         subwf   TimeVar,W     ; by checking whether Carry bit is
+00CA 0703      00387         btfss   STATUS,C      ; set after subtraction
+00CB 0AAB      00388         goto    AttnSig       ; If time <= Min, look for Attn Signal again
+
+
+
+
+DS00591B-page 24                                                          1997 Microchip Technology Inc.
+                                                                                        AN591
+00CC 0AD6            00389         goto     SyncSig   ; If time > Min, go get Sync signal
+                     00390
+00CD 0CCE            00391 AttnMax movlw    ATT_MAX   ; Load the TimeVariable to check for the
+00CE 0039            00392         movwf    TimeVar   ; maximum amount of time for Attn Signal
+00CF 0201            00393 AttnTmp movf     TMR0,W    ; Check the time, then check the line
+00D0 0099            00394         subwf    TimeVar,W ; See if more than ATT_MAX usecs have passed
+00D1 0703            00395         btfss    STATUS,C ; if not, check the line
+00D2 0A96            00396         goto     Reset     ; if so, Abort to Reset;too much time has passed
+00D3 0705            00397         btfss    PORTA,ADB ; Check for the line to going high
+00D4 0ACF            00398         goto     AttnTmp   ; if the line isn’t high, loop AttnMax again
+00D5 0061            00399         clrf     TMR0      ; if the went high, go get the Sync signal
+                     00400
+                     00401 ;***********************************************************************
+                     00402
+                     00403 ;*** LOOK FOR SYNC SIGNAL *** (SyncSig) ***
+                     00404 ; This routine checks the timing between the rising edge of the Attention
+                     00405 ; Signal & a falling edge indicating the start of the 1st Command bit.
+                     00406 ; At the end of the Attn Signal routine, the line went high, and
+                     00407 ; the TMR0 was cleared.
+                     00408 ; Check the TMR0,
+                     00409 ; if the 72 usec limit is exceeded,
+                     00410 ; abort to the Attn Signal
+                     00411 ; if the 72 usec limit is not exceed,
+                     00412 ; check the line
+                     00413 ; if the line went low (as the first bit of the Command),
+                     00414 ; go on to get the 8 Command Bits
+                     00415 ; if the line is still high,
+                     00416 ; loop to check TMR0 again
+                     00417
+                     00418 ;***********************************************************************
+                     00419
+00D6 0905            00420 SyncSig call     NoPrScl   ; Get the Sync Signal which follows the Attn
+00D7 0C48            00421         movlw    SYNC      ; Signal Turn off prescaler; timing counts are
+00D8 0039            00422         movwf    TimeVar   ; < 255 usecs and load the timing the for the
+00D9 0099            00423 SyncTmp subwf    TimeVar,W ; Sync Signal See if more than SYNC usecs
+00DA 0703            00424         btfss    STATUS,C ; have passed if not, go check the line
+00DB 0AAB            00425         goto     AttnSig   ; if so, Abort to Attn Signal
+00DC 0605            00426         btfsc    PORTA,ADB ; Check for the line to go low
+00DD 0AD9            00427         goto     SyncTmp   ; if the line is still high, loop again
+00DE 0061            00428         clrf     TMR0      ; if low, clear TMR0 & go on to get the Command
+                     00429
+                     00430 ;***********************************************************************
+                     00431
+                     00432 ;*** GET THE COMMAND: 8 BITS & STOP BIT *** (Command) ***
+                     00433 ; The Sync Signal was detected when the line went low after approximately
+                     00434 ; 70 usecs. This low line is the first bit of the Command. This
+                     00435 ; routine receives 8 bits, followed by a ‘1’ Stop bit.
+                     00436
+                     00437 ; IN DETAIL:
+                     00438 ; initialize a counter for counting down as the bits come in
+                     00439 ; call Get_Bit to receive each bit, MSB first, & rotate it into the
+                     00440 ; CmdByte register, where the Command Byte is stored.
+                     00441 ; After returning from GetBit, decrement the counter.
+                     00442 ; when all 8 bits have been received, clear TMR0 (to allow looking
+                     00443 ; for the Stop bit, or holding down the line for an SRQ), and go on to
+                     00444 ; Interpret the Command.
+                     00445
+                     00446 ; In GetBit, get the time,
+                     00447 ; if the time is greater than 72 usecs,
+                     00448 ; abort to the Attn Signal
+                     00449 ; if the time is less than 72 usecs,
+                     00450 ; check if the line went high
+                     00451 ; if line is still low,
+                     00452 ; loop to check the time again
+                     00453 ; if the line went high,
+                     00454 ; determine whether the line went high before or after 50 usecs
+
+
+
+
+ 1997 Microchip Technology Inc.                                                       DS00591B-page 25
+AN591
+                   00455 ; if the line went high before 50 usecs, rotate a 1 bit into CmdByte reg.
+                   00456 ; if the line went high after 50 usecs, rotate a 0 bit into CmdByte reg.
+                   00457 ; after getting a bit, check if the line went low (the start of the next
+                   00458 ; bit) if the max. Cell Bit time (104 usecs) is exceeded, abort to Attn
+                   00459 ; Signal when the line goes low, clear TMR0 and return to get another
+                   00460 ; bit or interpret the Command if all 8 bits have been been received
+                   00461
+                   00462 ;************************************************************************
+                   00463
+00DF 0C08          00464 Command movlw   BYTE       ; Get the 8 Command Bits - 1st bit already
+00E0 0037          00465         movwf   BitCntr    ; started, so count down from 8 to 0
+00E1 0C16          00466         movlw   CmdByte    ; rotate bits into CmdByte with indirect
+00E2 0024          00467         movwf   FSR        ; address
+00E3 0C48          00468 CmdLoop movlw   MAX_BIT    ; Get & rotate a 1 or 0 bit into CmdByte, or
+00E4 0039          00469         movwf   TimeVar    ; see if the maximum time is exceeded & abort
+00E5 0403          00470         bcf     STATUS,C ; clear Carry bit to ensure it won’t wrap around
+00E6 0376          00471         rlf     CmdByte,F ; rotate in the last bit
+00E7 090C          00472         call    Get_Bit    ; and get another one
+00E8 02F7          00473         decfsz BitCntr,F ; keep looping until 8 bits are received &
+00E9 0AE3          00474         goto    CmdLoop    ; rotated when the Command has been received,
+                   00475                            ; interpret it
+                   00476 ;************************************************************************
+                   00477
+                   00478 ;*** CHECK THE ADDRESS *** (AddrChk; may call MaskCmd, Globals, Srq) ***
+                   00479 ; The Command Stop Bit is a good time to determine if the Host is
+                   00480 ; addressing this Device:
+                   00481 ; test the left nibble of the received byte against the current Address
+                   00482 ; if the Address belongs to this Device,
+                   00483 ; mask out the command and register nibble of the received byte,
+                   00484 ; test it to see whether the Command is to Listen, Talk, or Flush
+                   00485 ; and go to the routine that looks for the end of the Stop Bit
+                   00486 ; if the Command is for another Device,
+                   00487 ; mask the command nibble
+                   00488 ; see if the Command is a global/reserved Command
+                   00489 ; if so, go do the Command
+                   00490 ; if the Command is not global,
+                   00491 ; check the Srq flag to see if another application needs service
+                   00492 ; if the Srq flag is set,
+                   00493 ; go issue a Service Request (Srq)
+                   00494 ; if the Srq flag is not set,
+                   00495 ; go get the Attn Signal
+                   00496
+00EA 020E          00497 AddrChk movf   Reg3a,W    ; See if the Command received is for this Device
+00EB 0E0F          00498         andlw DEVMASK     ; by masking off this Device’s Address
+00EC 0031          00499         movwf TmpReg2     ; and saving it in a temporary register
+00ED 03B1          00500         swapf TmpReg2,F ; (received nibbles in Command are reversed)
+00EE 0216          00501         movf   CmdByte,W ; Test if the received Address is for Device,
+00EF 0EF0          00502         andlw ADDRMSK     ; by masking out the Command nibble,
+00F0 0191          00503         xorwf TmpReg2,W ; compare received Address to current Address
+00F1 0643          00504         btfsc STATUS,Z ; if Address is for this Device, go get the Stop
+00F2 0AF7          00505         goto   CmdStop    ; Bit & see what the Command is for this Device.
+                   00506
+00F3 0933          00507         call   MaskCmd    ; Mask the Command Nibbles from the Address
+00F4 0923          00508         call   Globals    ; and go see if it was a Global Command
+00F5 0943          00509         call   Srq        ; if not, go see if Srq needs to be asserted
+00F6 0AAB          00510         goto   AttnSig    ; if not, go get the Attn Signal
+                   00511
+                   00512 ;***********************************************************************
+                   00513
+                   00514 ;*** LOOK FOR THE COMMAND STOP BIT *** (CmdStop) ***
+                   00515 ; Look for the Stop Bit following the Command Byte. This is not executed
+                   00516 ; if Srq is asserted by this Device.
+                   00517
+00F7 0C48          00518 CmdStop movlw   MAX_BIT    ; load the maximum time for a bit low time
+00F8 0039          00519         movwf   TimeVar    ;
+00F9 0099          00520         subwf   TimeVar,W ; See if more than the max. # of usecs have
+
+
+
+
+DS00591B-page 26                                                           1997 Microchip Technology Inc.
+                                                                                        AN591
+00FA 0703            00521         btfss    STATUS,C    ; passed if not, go check for the line to go
+00FB 0AAB            00522         goto     AttnSig     ; high if so, abort to the Attn Signal
+00FC 0705            00523         btfss    PORTA,ADB   ; Check for the line to go high
+00FD 0AF7            00524         goto     CmdStop     ; if the line is still low, loop CmdStop
+00FE 0061            00525         clrf     TMR0        ; again if high, clear TMR0 as the beginning
+                     00526                              ; of the Tlt and go on to interpret Command
+                     00527                              ; as Talk, Listen, or Flush.
+                     00528
+                     00529 ;************************************************************************
+                     00530
+                     00531 ;*** INTERPRET THE COMMAND *** (CmmdChk) ***
+                     00532 ; Determine first if the command is for Register 3, and set the Reg3 flag
+                     00533 ; if so, then see if the Command is to Talk, Listen, or Flush and go to
+                     00534 ; that routine.
+                     00535
+00FF 0933            00536 CmmdChk call     MaskCmd     ; Separate the Command Nibbles into temp. regs.
+0100 0712            00537         btfss    RegNum,00h ; (MaskCmd put Command Type bits into TmpReg1)
+0101 0B04            00538         goto     CmdChk2     ; see if the Command is for Register 3
+0102 0632            00539         btfsc    RegNum,01h ; if not, go continue interpreting the Command
+0103 0534            00540         bsf      Flags1,F1Reg3; if so, set the Reg. 3 flag indicating this
+                     00541                              ; condition for the Talk or Listen routines
+                     00542
+0104 0211            00543 CmdChk2 movf     TmpReg2,W   ; Test what Command was received &
+0105 0F0C            00544         xorlw    C_TALK      ;   branch accordingly
+0106 0643            00545         btfsc    STATUS,Z    ; test for this being a Talk Command
+0107 0B11            00546         goto     Talk
+0108 0211            00547         movf     TmpReg2,W
+0109 0F08            00548         xorlw    C_LISTN
+010A 0643            00549         btfsc    STATUS,Z    ; test for this being a Listen Command
+010B 0B5D            00550         goto     Listen
+010C 0211            00551         movf     TmpReg2,W
+010D 0F01            00552         xorlw    C_FLUSH
+010E 0643            00553         btfsc    STATUS,Z    ; test if the Command is to Flush a Register
+010F 0BBE            00554         goto     Flush       ; if the Command isn’t a Flush, go get
+0110 0AAB            00555         goto     AttnSig     ;   the Attn Signal
+                     00556
+                     00557 ;************************************************************************
+                     00558
+                     00559 ;*** SEND DATA TO THE HOST *** (Talk; calls Tlt, LineLow, LineHi) ***
+                     00560 ; Data is sent to Host from ADB Data Registers using indirect addressing.
+                     00561 ; (TMR0 was cleared in CmmdChk, and timing for Tlt began there)
+                     00562 ; Call the Tlt (Stop to Start Time), which waits for the middle of the
+                     00563 ; Tlt, when the Tlt returns, send a ‘1’ Start Bit,
+                     00564 ; load the first byte of the Data Register into temporary register,
+                     00565 ; send the 1st 8 bits,
+                     00566 ; load the second byte of the Data Register into temporary register,
+                     00567 ; send the 2nd 8 bits,
+                     00568 ; and send a ‘0’ Stop Bit
+                     00569 ; if at anytime during the Tlt, LineLow, or LineHi the ADB line is
+                     00570 ; inappropriately high or low, the routine aborts to the Collision
+                     00571 ; routine. The Collision routine only sets a flag if this is a Talk Reg.
+                     00572 ; 3 Command, indicating a Collision occurred when sending Data for Reg.
+                     00573 ; 3, and goes to get the Attention Signal.
+                     00574 ; Using temporary registers ensures the Data doesn’t get cleared until
+                     00575 ; all of it has been sent.
+                     00576
+0111 0634            00577 Talk btfsc Flags1,F1Reg3 ; if the talk command is for Register 3,
+0112 0B1D            00578       goto    SetRndm        ; go create a Random Address and load it into
+0113 07D5            00579       btfss Flags2,F2DSend ; TmpReg1 Check whether there is data to
+0114 0AAB            00580       goto    AttnSig        ; send if not, let the bus timeout & get Attn
+                     00581
+0115 0213            00582 SetTmps movf RAMaddr,W       ; Signal Load the temporary registers with Data
+0116 0024            00583         movwf FSR            ; stored at the appropriate RAM Address for the
+0117 0200            00584         movf INDF,W          ; Register indicated in the Command Byte
+0118 0030            00585         movwf TmpReg1
+0119 02A4            00586         incf FSR,F
+
+
+
+
+ 1997 Microchip Technology Inc.                                                       DS00591B-page 27
+AN591
+011A 0200      00587         movf INDF,W           ;Load 2nd temporary register from 2nd RAM
+011B 0031      00588         movwf TmpReg2         ;Address where Data is stored
+011C 0B29      00589         goto CallTlt
+               00590
+011D 0201      00591 SetRndm movf TMR0,W           ;The Address sent to the Host for a Talk Reg.3
+011E 0198      00592         xorwf Random,W        ;Command must be random to avoid collisions
+011F 0E0F      00593         andlw LOW_NBL         ;with other Device Addresses during
+0120 0030      00594         movwf TmpReg1         ;initialization
+0121 020E      00595         movf Reg3a,W          ;
+0122 0EF0      00596         andlw HI_NIBL         ;
+0123 0130      00597         iorwf TmpReg1,F       ;
+0124 0634      00598 SetHndl btfsc Flags1,F1Reg3   ; if this is a Talk R3 Command,
+0125 020F      00599         movf Reg3b,W          ; send the Device Handler ID
+0126 0695      00600        btfsc Flags2,F2SFail ; if a Device Self-Test was performed and it
+0127 0040      00601         clrw                  ; failed, send the reserved Handler ID of
+0128 0031      00602         movwf TmpReg2         ; ‘00h’ to indicate the Failed condition
+               00603
+0129 0554      00604 CallTlt bsf   Flags1,F1Talk   ; Set the Talk Flag to indicate to the Tlt
+012A 094C      00605         call Tlt              ; routine to return for the end of Talk Start Bit
+               00606
+012B 0C10      00607 SndStrt movlw TmpReg1         ; Send a ‘1’ bit as the Start Bit
+012C 0024      00608         movwf FSR             ; Use the indirect addressing of the temporary
+012D 0C00      00609         movlw TRI_OUT         ; registers from which Data will be sent
+012E 0005      00610         tris PORTA            ; tri-state PORTA to make the ADB an output
+012F 0061      00611         clrf TMR0             ; clear TMR0 as the beginning of a bit
+0130 0C16      00612         movlw LOW1BIT
+0131 0976      00613         call LineLow          ; hold the line low for 1/3rd of a Bit Cell
+0132 0C32      00614         movlw HI_1BIT
+0133 0983      00615         call LineHi           ; let the go line high for rest of the Bit Cell
+               00616
+0134 0C08      00617 SetSend movlw BYTE            ; Send the data bytes
+0135 0037      00618         movwf BitCntr         ; Load the counter to send 8 Bits
+0136 06E0      00619 SndBits btfsc INDF,MSB        ; determine whether to complete the send of
+0137 0B3D      00620         goto Send1            ; a ‘1’ or ‘0’ bit
+               00621
+0138 0C38      00622 Send0   movlw LOW0BIT         ; Send a ‘0’ bit
+0139 0976      00623         call LineLow          ; hold the line low for 2/3rd of a Bit Cell
+013A 0C14      00624         movlw HI_0BIT
+013B 0983      00625         call LineHi           ; let the line high for the rest of the Bit Cell
+013C 0B41      00626         goto Rotate
+               00627
+013D 0C16      00628 Send1   movlw LOW1BIT         ; Send a ‘1’ bit
+013E 0976      00629         call LineLow          ; hold the line low for 1/3rd of a Bit Cell
+013F 0C32      00630         movlw HI_1BIT
+0140 0983      00631         call LineHi           ; let the line high for the rest of the Bit Cell
+               00632
+0141 0403      00633 Rotate bcf     STATUS,C       ; Rotate out the MSB bit just sent from
+0142 0360      00634         rlf    INDF,F         ; the Temporary Data Register
+0143 02F7      00635         decfsz BitCntr,F      ; count down as bits are sent
+0144 0B36      00636         goto   SndBits        ; loop until 8 bits are sent
+0145 06B4      00637         btfsc Flags1,F1Sent1 ; see whether all data has been sent
+0146 0B4A      00638         goto   SndStop        ; if so, go send the Stop Bit
+0147 05B4      00639         bsf    Flags1,F1Sent1 ; if not, set the Sent Flag,
+0148 02A4      00640         incf   FSR,F          ; Then go prepare to send the next 8 bits,
+0149 0B34      00641         goto   SetSend        ; and send the data from the next Data register
+               00642
+014A 0C38      00643 SndStop movlw LOW0BIT         ; Send a ‘0’ bit to the Host
+014B 0976      00644         call LineLow
+014C 0C14      00645         movlw HI_0BIT
+014D 0574      00646         bsf   Flags1,F1Stop   ; indicate to LineHi that this is the Stop
+014E 0983      00647         call LineHi          ; Bit let the line go high for 2/3rd of a Bit Cell
+014F 04F4      00648         bcf   Flags1,F1Cllsn ; a Collision did not occur, clear the flag
+0150 0415      00649         bcf   Flags2,F2Srq    ; an Srq is no longer needed
+0151 04D5      00650         bcf   Flags2,F2DSend ; the Data has been sent
+0152 0634      00651         btfsc Flags1,F1Reg3   ; If current Data Reg. is 3, don’t allow
+0153 0BC7      00652         goto RunTsk2          ; Reg. 3 to be cleared (or at least the 1st 2
+
+
+
+
+DS00591B-page 28                                                          1997 Microchip Technology Inc.
+                                                                                      AN591
+0154 0213           00653         movf RAMaddr,W        ; bytes) clear the Data Registers from which
+0155 0024           00654         movwf FSR             ; the Data was sent via temporary registers
+0156 0060           00655         clrf INDF             ; Clear the registers holding the originalData
+0157 02A4           00656         incf FSR,F            ; which was just sent via the temporary regs.
+0158 0060           00657         clrf INDF             ; Go setup to run the 2nd Application Task for
+0159 0BC7           00658         goto RunTsk2          ; the time between the end of data sent, and
+                    00659                               ; the beginning of the next Attention Signal
+                    00660
+015A 0634           00661 Collisn btfsc Flags1,F1Reg3 ; if there was a collision during a Talk
+015B 05F4           00662         bsf   Flags1,F1Cllsn ; Reg. 3 Command, then set the Collision
+015C 0AAB           00663         goto AttnSig          ; Flag, otherwise, just abort to Attn Signal
+                    00664
+                    00665 ;**********************************************************************
+                    00666
+                    00667 ;*** RECEIVE DATA FROM THE HOST *** (Listen; calls Tlt, GetBit) ***
+                    00668 ; Get the Tlt Signal (Stop to Start Time)
+                    00669 ; Tlt recognizes the beginning of the Start Bit
+                    00670 ; Load indirect address of temporary Data register
+                    00671 ; Get the rest of the Start Bit
+                    00672 ; Receive the first Data byte from the Host into the temporary Data
+                    00673 ; register by calling GetBit - GetBit uses indirect address
+                    00674 ; Set indirect address to 2nd temporary Data register
+                    00675 ; Receive the second Data byte from the Host into the temporary Data
+                    00676 ; register And then receive the Data Stop Bit if the
+                    00677 ; data was not for Reg. 3, move the Data now stored in the temporary
+                    00678 ; Data registers into the RAM locations of the Data register designated
+                    00679 ; in RAMaddr, and go run the 2nd Application Task.
+                    00680 ; if the data was for Reg. 3, go interpret what the Data Command was
+                    00681 ; and take appropriate action.
+                    00682
+015D 0594           00683 Listen bsf    Flags1,F1Lstn ; Set Listen Flag to tell Tlt (Stop to Start Time)
+015E 094C           00684         call   Tlt          ; to look for the beginning of the Start Bit
+015F 0C10           00685         movlw TmpReg1       ; receive bits into temporary registers
+0160 0024           00686         movwf FSR           ; use indirect addressing to store received Data
+0161 0060           00687         clrf   INDF         ; in temporary registers
+0162 02A4           00688         incf   FSR,F        ;
+0163 0060           00689         clrf   INDF         ; clear any data currently in temporary registers
+0164 00E4           00690         decf   FSR,F        ;
+0165 0C32           00691         movlw BIT_TST       ; load the TimeVariable to look for the rest of
+0166 0039           00692         movwf TimeVar       ; the Start Bit
+0167 0403           00693         bcf    STATUS,C     ; clear the Carry bit so it doesn’t wrap around
+0168 090C           00694         call   Get_Bit      ; get the rest of the Start bit
+0169 0700           00695         btfss INDF,LSB      ; it should be a ‘1’ bit
+016A 0AAB           00696         goto   AttnSig      ; if not, abort to the Attn Signal
+016B 0400           00697         bcf    INDF,LSB     ; don’t let the Start Bit be the 1st bit of Data
+016C 0C08           00698 SetRecv movlw BYTE          ; setup to receive 8 bits at a time into the reg.
+016D 0037           00699         movwf BitCntr       ; count down as bits come in
+016E 0C48           00700 RcvData movlw MAX_BIT       ; get & rotate a 1 or 0 bit into Data Reg., and
+016F 0039           00701         movwf TimeVar       ; see if MAX_BIT time is exceeded & if so, abort
+0170 0403           00702         bcf    STATUS,C     ; clear Carry bit so it doesn’t wrap around
+0171 0360           00703         rlf    INDF,F       ; rotate the bit into the Register (the 1st
+0172 090C           00704         call   Get_Bit      ; rotation doesn’t count)
+0173 02F7           00705         decfsz BitCntr,F    ;decrement the counter each time a bit is
+0174 0B6E           00706         goto   RcvData      ;received loop until 8 bits are received
+0175 06D4           00707         btfsc Flags1,F1Rcvd1 ; see whether the 2nd Data byte was just
+0176 0B7A           00708         goto   RcvStop      ;received if so, go get the Stop Bit
+0177 05D4           00709         bsf    Flags1,F1Rcvd1 ; if not, set the Received-1st-Byte Flag,
+0178 02A4           00710         incf   FSR,F        ;increment FSR to receive 2nd Byte of the Data
+0179 0B6C           00711         goto   SetRecv      ;Reg. & go prepare to receive the next byte
+                    00712
+017A 0C48           00713 RcvStop movlw MAX_BIT       ;Get the ‘0’ Stop Bit
+017B 0039           00714         movwf TimeVar       ;
+017C 0201           00715 RecvTmp movf   TMR0,W       ;Check the time, then check if the line went high
+017D 0099           00716         subwf TimeVar,W     ;See if more than MAX_BIT usecs have passed
+017E 0703           00717         btfss STATUS,C      ;if so, abort to Attn Signal
+017F 0AAB           00718         goto   AttnSig      ;
+
+
+
+
+ 1997 Microchip Technology Inc.                                                      DS00591B-page 29
+AN591
+0180 0705     00719         btfss PORTA,ADB      ; if not, check whether the line went high
+0181 0B7C     00720         goto   RecvTmp       ; if still low, loop to check the time again
+0182 0C32     00721         movlw BIT_TST        ; if high, make sure the Stop Bit was ‘0’
+0183 0039     00722         movwf TimeVar        ; if the time was < BIT_TST, abort to
+0184 0201     00723         movf   TMR0,W        ; the Attn Signal
+0185 0099     00724         subwf TimeVar,W      ; if the time was > BIT_TST, the ‘0’ Stop
+0186 0603     00725         btfsc STATUS,C       ; Bit was received
+0187 0AAB     00726         goto   AttnSig       ; clear TMR0 so second Task may use idle time
+              00727
+0188 0061     00728 RcvdDat clrf   TMR0          ; Move Data to registers (unless for Reg 3.)
+0189 0634     00729         btfsc Flags1,F1Reg3 ; see if Data was received for Register 3,
+018A 0B94     00730         goto   DataChk       ; if so, go interpret the Listen Reg. 3
+018B 0213     00731         movf   RAMaddr,W     ; Command if not, move the received Data bytes
+018C 0024     00732         movwf FSR            ; to their indicated registers using indirect
+018D 0210     00733         movf   TmpReg1,W     ; address,
+018E 0020     00734         movwf INDF
+018F 02A4     00735         incf   FSR,F
+0190 0211     00736         movf   TmpReg2,W
+0191 0020     00737         movwf INDF
+0192 05B5     00738         bsf    Flags2,F2DRcvd; set the Data-has-been-received flag,
+0193 0BC7     00739         goto   RunTsk2       ; and go prepare to run the 2nd Application Task
+              00740
+              00741 ;************************************************************************
+              00742
+              00743 ;* INTERPRET THE LISTEN REG. 3 COMMAND SENT BY THE HOST *** (DataChk) *
+              00744 ; This interprets the Data received for Register 3 as one of the
+              00745 ; following Commands and runs the corresponding routine:
+              00746 ;
+              00747 ; Mask the Data Command received using the following Constants passed
+              00748 ; to the IntData (Interpret Data Command) macro:
+              00749 ; SELFTST (FF) - the Device is instructed to do a Self-Test
+              00750 ; LISTEN1 (00) - unconditionally change Device Address and/or Status bits
+              00751 ; LISTEN2 (FE) - change only the Device Address, and only change it
+              00752 ;                if the Device Address is marked as movable
+              00753 ; DEV_ACT (FD) - change Device Address only if the Device Activator is
+              00754 ;                pressed (as defined in Device specification)
+              00755
+              00756 DataChk IntData SELFTST,SlfTest ; see if Data Command is for Self Test
+0194 0211         M         movf    TmpReg2,W       ; interprets the Data Command received by
+0195 0FF          M         xorlw   SELFTST         ; comparing the 2nd byte to a Data
+0196 0643         M         btfsc   STATUS,Z        ; Command constant
+0197 0BA7         M         goto    SlfTest         ; it then goes to the appropriate routine
+              00757         IntData LISTEN1,UpDat3a ; update bits Address and Status Bits (8
+0198 0211         M         movf    TmpReg2,W       ; to 13) interprets the Data Command
+0199 0F00         M         xorlw   LISTEN1         ; received by comparing the 2nd byte to a Data
+019A 0643         M         btfsc   STATUS,Z        ; Command constant
+019B 0BA9         M         goto    UpDat3a         ; it then goes to the appropriate routine
+              00758         IntData LISTEN2,NewAddr ; change the Device Address (Bits 8 to 12)
+019C 0211         M         movf    TmpReg2,W       ; interprets the Data Command received by
+019D 0FFE         M         xorlw   LISTEN2         ; comparing the 2nd byte to a Data
+019E 0643         M         btfsc   STATUS,Z        ; Command constant
+019F 0BAF         M         goto    NewAddr         ; it then goes to the appropriate routine
+              00759         IntData DEV_ACT,DevActv ; change the Device Address if the Device
+01A0 0211         M         movf    TmpReg2,W       ; interprets the Data Command received by
+01A1 0FFD         M         xorlw   DEV_ACT         ; comparing the 2nd byte to a Data
+01A2 0643         M         btfsc   STATUS,Z        ; Command constant
+01A3 0BAD         M         goto    DevActv         ; it then goes to the appropriate routine
+              00760                                 ; Activator was pressed
+01A4 0211     00761         movf    TmpReg2,W    ; if none of these Commands were given, put
+01A5 002F     00762         movwf   Reg3b        ; received Data into Reg. 3b as a new Device the
+01A6 0BC7     00763         goto    RunTsk2      ; Handler ID and go prepare to run the 2nd Task
+              00764
+01A7 0575     00765 SlfTest bsf     Flags2,F2STest ; Tell Device to do a Self-Test during 2nd
+01A8 0BC7     00766         goto    RunTsk2         ; Task, and go prepare to run the 2nd Task
+              00767
+01A9 0210     00768 UpDat3a movf    TmpReg1,W       ; Unconditionally change the Device Address
+
+
+
+
+DS00591B-page 30                                                          1997 Microchip Technology Inc.
+                                                                                      AN591
+                  00769                             ; and/or the Status Bits of Reg. 3a
+01AA 05C0         00770         bsf   W,ExpEvnt     ; NOTE: Exceptional Event should remain as
+01AB 002E         00771         movwf Reg3a         ; set to a ‘1’ unless otherwise indicated
+01AC 0BC7         00772         goto RunTsk2        ; Go prepare to run the 2nd Application Task
+                  00773
+01AD 0755         00774 DevActv btfss Flags2,F2DActv; if the Device Activator was NOT pressed,
+01AE 0BC7         00775         goto RunTsk2        ; go run the 2nd Application Task,
+                  00776                             ; if it was, change Device Address, if movable
+01AF 06F4         00777 NewAddr btfsc Flags1,F1Cllsn; If a collison occurred during the last
+01B0 0AAB         00778         goto AttnSig        ; Talk Reg. 3, the Address was marked unmov
+01B1 0210         00779         movf TmpReg1,W      ; able, abort to the Attention Signal.
+01B2 0F00         00780         xorlw FALSE         ;
+01B3 0643         00781         btfsc STATUS,Z
+01B4 0AAB         00782         goto AttnSig
+01B5 020E         00783         movf Reg3a,W        ; Create the new Device Address by masking in
+01B6 0EF0         00784         andlw HI_NIBL       ; the Address received by the host, not allowing
+01B7 0031         00785         movwf TmpReg2       ; the upper nibble Status Bits in Reg. 3a to
+01B8 0210         00786         movf TmpReg1,W      ; be affected.
+01B9 0E0F         00787         andlw LOW_NBL       ;
+01BA 0111         00788         iorwf TmpReg2,W     ; NOTE: Exceptional Event should remain as
+01BB 05C0         00789         bsf   W,ExpEvnt     ; set to a ‘1’ unless otherwise indicated
+01BC 002E         00790         movwf Reg3a         ;   when the new Device Address is in place,
+01BD 0BC7         00791         goto RunTsk2        ; go prepare to run the 2nd Application Task
+                  00792
+                  00793 ;***********************************************************************
+                  00794 ;*** FLUSH THE REGISTER SPECIFIED BY THE COMMAND BYTE *** (Flush) ***
+                  00795
+01BE 0213         00796 Flush   movf    RAMaddr,W   ; Clear the Data in the specified Register
+01BF 0024         00797         movwf   FSR         ; use indirect address to clear the RAM
+01C0 0060         00798         clrf    INDF        ; locations holding the Data
+01C1 02A4         00799         incf    FSR,F
+01C2 0060         00800         clrf    INDF
+01C3 0BC7         00801         goto    RunTsk2
+                  00802
+                  00803 ;************************************************************************
+                  00804
+01C4 0AAB         00805 Reserv1 goto    AttnSig     ; No action until Reserved Command 1 is defined
+                  00806
+                  00807 ;***********************************************************************
+                  00808
+01C5 0AAB         00809 Reserv2 goto    AttnSig     ; No action until Reserved Command 2 is defined
+                  00810
+                  00811 ;***********************************************************************
+                  00812
+01C6 0AAB         00813 Reserv3 goto    AttnSig     ; No action until Reserved Command 3 is defined
+                  00814
+                  00815 ;***********************************************************************
+                  00816
+                  00817 ;*** PUT THE CODE FOR OTHER APPLICATION HERE *** (RunTsk2, Task_2) ***
+                  00818
+                  00819 ;        bsf   Flags2,F2SFail ; code would go before here if a Self Test
+                  00820 ;        bcf   Flags2,F2SFail ; was performed and it failed or passed
+                  00821
+01C7 0070         00822 RunTsk2 clrf TmpReg1          ; When finished with Data interpretation,
+01C8 0071         00823         clrf TmpReg2          ; clear the temporary Data registers, and
+01C9 0CE1         00824         movlw TSK2MAX         ; load Task 2 TimeVariable with amount allowed
+01CA 003A         00825         movwf Tsk2Var         ; between end of Data and Attention Signal. If
+                  00826
+01CB 0615         00827 Task_2 btfsc Flags2,F2Srq     ; the Srq Flag has not been cleared, then data
+01CC 0BF7         00828         goto AttnTst          ; must still be sent from 1st Service Request
+01CD 0900         00829         call PrScale          ; Turn on the TMR0 prescale for >250usec count
+                  00830
+01CE 0675         00831 Tests   btfsc Flags2,F2STest ; See if Key-Up transition codes should be
+01CF 0BDC         00832         goto LoadDat          ; sent
+01D0 0635         00833         btfsc Flags2,Switch   ; Determine if the Switch has been
+01D1 0BED         00834         goto DBounce          ; de-bounced if not, go timeout
+
+
+
+
+ 1997 Microchip Technology Inc.                                                     DS00591B-page 31
+AN591
+01D2 0626          00835         btfsc   PORTB,Switch ; Check if Switch is pressed,
+01D3 0BF3          00836         goto    Tsk2Tmp       ; if not, go timeout
+01D4 05F5          00837         bsf     Flags2,F2DMore; data needs to be sent to the host
+01D5 0515          00838         bsf     Flags2,F2Srq ; and issue a Service Request
+01D6 0535          00839         bsf     Flags2,Switch ; set the flag for de-bouncing switch
+01D7 0506          00840         bsf     PORTB,LED     ; Turn on LED when Switch is pressed
+01D8 0C08          00841         movlw   DEBOUNC
+01D9 003B          00842         movwf   TmpCtr1
+01DA 06D5          00843         btfsc   Flags2,F2DSend; The last Data was sent correctly if Talk
+01DB 0BF3          00844         goto    Tsk2Tmp       ; cleared the DSend flag, if set, goto
+                   00845                               ; Attn Test to re-send Data
+                   00846
+01DC 07F5          00847 LoadDat btfss   Flags2,F2DMore; If all the Data has been sent, DMore is
+01DD 0BF3          00848         goto    Tsk2Tmp       ; clearif DMore is clear, go time out
+01DE 0C38          00849         movlw   SHIFT         ; if DMore is set, Data remains to be sent
+01DF 0028          00850         movwf   Reg0a         ; if not, load the Data bytes
+01E0 0C12          00851         movlw   BANG
+01E1 0029          00852         movwf   Reg0b
+01E2 05D5          00853         bsf     Flags2,F2DSend; Data now needs to be sent to the host
+01E3 0515          00854         bsf     Flags2,F2Srq ; Until all data has been sent, Srq’s may
+01E4 0675          00855         btfsc   Flags2,F2STest; be sent See if Key-Up Transition Codes
+01E5 0BE8          00856         goto    KeyUp         ; should be sent if so, go set the bits
+01E6 0575          00857         bsf     Flags2,F2STest; if not, set bit so they will be next time
+01E7 0BED          00858         goto    DBounce       ; and go debounce the switch
+                   00859
+01E8 05E8          00860 KeyUp   bsf     Reg0a,07h     ; Set the 7th bit in each register to
+01E9 05E9          00861         bsf     Reg0b,07h     ; indicate the Key is up
+01EA 0475          00862         bcf     Flags2,F2STest; The Key-Up Transition Code bits have been
+01EB 04F5          00863         bcf     Flags2,F2DMore; set All data will have been sent to the
+01EC 0BED          00864         goto    DBounce       ; host after this transaction
+                   00865
+01ED 0726          00866 DBounce btfss   PORTB,Switch ; Check if Switch has been released,
+01EE 0BF3          00867         goto    Tsk2Tmp       ; if not, go timeout
+01EF 02FB          00868         decfsz TmpCtr1,F      ; if so, start timed debounce of several
+01F0 0BF3          00869         goto    Tsk2Tmp       ; millisecs. before switch is tested again
+01F1 0406          00870         bcf     PORTB,LED     ; Turn off LED when Switch is released
+01F2 0435          00871         bcf     Flags2,Switch ; clear de-bounce flag
+                   00872
+01F3 0201          00873 Tsk2Tmp movf    TMR0,W      ; Check the time to see if more than the maximum
+01F4 009A          00874         subwf   Tsk2Var,W   ; time limit has been exceeded
+01F5 0603          00875         btfsc   STATUS,C    ; if so, go determine what part of Attn Signal
+01F6 0BF3          00876         goto    Tsk2Tmp
+                   00877
+01F7 0714          00878 AttnTst btfss   Flags1,F1Attn ; After this portion of the 2nd Task is
+01F8 0AAB          00879         goto    AttnSig       ; complete,If 2nd Task is NOT run during
+01F9 0414          00880         bcf     Flags1,F1Attn ; Attn Signal, go get the start of the Attn
+01FA 0AC2          00881         goto    AttnMin       ; Signal otherwise, go get the rest of the
+                   00882                               ; Attn Signal
+                   00883 ;************************************************************************
+                   00884
+01FF               00885         ORG     PIC54
+01FF 0A90          00886 RESETV goto     Start
+                   00887
+                   00888     END
+
+
+
+
+DS00591B-page 32                                                             1997 Microchip Technology Inc.
+                                                                             AN591
+MEMORY USAGE MAP (‘X’ = Used,        ‘-’ = Unused)
+
+0000 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0040 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0080 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+00C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0100 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0140 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+0180 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX
+01C0 : XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXXXXXXX XXXXXXXXXXX----X
+
+All other memory blocks unused.
+
+Program Memory Words Used:         508
+Program Memory Words Free:         516
+
+
+Errors   :        0
+Warnings :        0 reported,        0 suppressed
+Messages :        0 reported,        0 suppressed
+
+
+
+
+ 1997 Microchip Technology Inc.                                             DS00591B-page 33
+Note the following details of the code protection feature on PICmicro® MCUs.
+
+•    The PICmicro family meets the specifications contained in the Microchip Data Sheet.
+•    Microchip believes that its family of PICmicro microcontrollers is one of the most secure products of its kind on the market today,
+     when used in the intended manner and under normal conditions.
+•    There are dishonest and possibly illegal methods used to breach the code protection feature. All of these methods, to our knowl-
+     edge, require using the PICmicro microcontroller in a manner outside the operating specifications contained in the data sheet.
+     The person doing so may be engaged in theft of intellectual property.
+•    Microchip is willing to work with the customer who is concerned about the integrity of their code.
+•    Neither Microchip nor any other semiconductor manufacturer can guarantee the security of their code. Code protection does not
+     mean that we are guaranteeing the product as “unbreakable”.
+•    Code protection is constantly evolving. We at Microchip are committed to continuously improving the code protection features of
+     our product.
+If you have any further questions about this matter, please contact the local sales office nearest to you.
+
+
+
+
+Information contained in this publication regarding device               Trademarks
+applications and the like is intended through suggestion only
+and may be superseded by updates. It is your responsibility to           The Microchip name and logo, the Microchip logo, FilterLab,
+ensure that your application meets with your specifications.             KEELOQ, microID, MPLAB, PIC, PICmicro, PICMASTER,
+No representation or warranty is given and no liability is               PICSTART, PRO MATE, SEEVAL and The Embedded Control
+assumed by Microchip Technology Incorporated with respect                Solutions Company are registered trademarks of Microchip Tech-
+to the accuracy or use of such information, or infringement of           nology Incorporated in the U.S.A. and other countries.
+patents or other intellectual property rights arising from such
+                                                                         dsPIC, ECONOMONITOR, FanSense, FlexROM, fuzzyLAB,
+use or otherwise. Use of Microchip’s products as critical com-
+                                                                         In-Circuit Serial Programming, ICSP, ICEPIC, microPort,
+ponents in life support systems is not authorized except with
+                                                                         Migratable Memory, MPASM, MPLIB, MPLINK, MPSIM,
+express written approval by Microchip. No licenses are con-
+                                                                         MXDEV, PICC, PICDEM, PICDEM.net, rfPIC, Select Mode
+veyed, implicitly or otherwise, under any intellectual property
+                                                                         and Total Endurance are trademarks of Microchip Technology
+rights.
+                                                                         Incorporated in the U.S.A.
+
+                                                                         Serialized Quick Turn Programming (SQTP) is a service mark
+                                                                         of Microchip Technology Incorporated in the U.S.A.
+
+                                                                         All other trademarks mentioned herein are property of their
+                                                                         respective companies.
+
+                                                                         © 2002, Microchip Technology Incorporated, Printed in the
+                                                                         U.S.A., All Rights Reserved.
+
+                                                                              Printed on recycled paper.
+
+
+
+
+                                                                        Microchip received QS-9000 quality system
+                                                                        certification for its worldwide headquarters,
+                                                                        design and wafer fabrication facilities in
+                                                                        Chandler and Tempe, Arizona in July 1999. The
+                                                                        Company’s quality system processes and
+                                                                        procedures are QS-9000 compliant for its
+                                                                        PICmicro® 8-bit MCUs, KEELOQ® code hopping
+                                                                        devices, Serial EEPROMs and microperipheral
+                                                                        products. In addition, Microchip’s quality
+                                                                        system for the design and manufacture of
+                                                                        development systems is ISO 9001 certified.
+
+
+
+
+ 2002 Microchip Technology Inc.
+M
+                               WORLDWIDE SALES AND SERVICE
+AMERICAS                                ASIA/PACIFIC                                 Japan
+                                                                                     Microchip Technology Japan K.K.
+Corporate Office                        Australia
+                                                                                     Benex S-1 6F
+2355 West Chandler Blvd.                Microchip Technology Australia Pty Ltd
+                                                                                     3-18-20, Shinyokohama
+Chandler, AZ 85224-6199                 Suite 22, 41 Rawson Street
+                                                                                     Kohoku-Ku, Yokohama-shi
+Tel: 480-792-7200 Fax: 480-792-7277     Epping 2121, NSW
+                                                                                     Kanagawa, 222-0033, Japan
+Technical Support: 480-792-7627         Australia
+Web Address: http://www.microchip.com   Tel: 61-2-9868-6733 Fax: 61-2-9868-6755      Tel: 81-45-471- 6166 Fax: 81-45-471-6122
+Rocky Mountain                          China - Beijing                              Korea
+2355 West Chandler Blvd.                Microchip Technology Consulting (Shanghai)   Microchip Technology Korea
+Chandler, AZ 85224-6199                 Co., Ltd., Beijing Liaison Office            168-1, Youngbo Bldg. 3 Floor
+Tel: 480-792-7966 Fax: 480-792-7456     Unit 915                                     Samsung-Dong, Kangnam-Ku
+                                        Bei Hai Wan Tai Bldg.                        Seoul, Korea 135-882
+Atlanta                                 No. 6 Chaoyangmen Beidajie                   Tel: 82-2-554-7200 Fax: 82-2-558-5934
+500 Sugar Mill Road, Suite 200B         Beijing, 100027, No. China                   Singapore
+Atlanta, GA 30350                       Tel: 86-10-85282100 Fax: 86-10-85282104      Microchip Technology Singapore Pte Ltd.
+Tel: 770-640-0034 Fax: 770-640-0307                                                  200 Middle Road
+                                        China - Chengdu
+Boston                                                                               #07-02 Prime Centre
+                                        Microchip Technology Consulting (Shanghai)
+2 Lan Drive, Suite 120                                                               Singapore, 188980
+                                        Co., Ltd., Chengdu Liaison Office
+Westford, MA 01886                                                                   Tel: 65-334-8870 Fax: 65-334-8850
+                                        Rm. 2401, 24th Floor,
+Tel: 978-692-3848 Fax: 978-692-3821                                                  Taiwan
+                                        Ming Xing Financial Tower
+Chicago                                 No. 88 TIDU Street                           Microchip Technology Taiwan
+333 Pierce Road, Suite 180              Chengdu 610016, China                        11F-3, No. 207
+Itasca, IL 60143                        Tel: 86-28-6766200 Fax: 86-28-6766599        Tung Hua North Road
+Tel: 630-285-0071 Fax: 630-285-0075                                                  Taipei, 105, Taiwan
+                                        China - Fuzhou
+Dallas                                                                               Tel: 886-2-2717-7175 Fax: 886-2-2545-0139
+                                        Microchip Technology Consulting (Shanghai)
+4570 Westgrove Drive, Suite 160         Co., Ltd., Fuzhou Liaison Office
+Addison, TX 75001                       Unit 28F, World Trade Plaza
+Tel: 972-818-7423 Fax: 972-818-2924                                                  EUROPE
+                                        No. 71 Wusi Road
+Detroit                                 Fuzhou 350001, China                         Denmark
+Tri-Atria Office Building               Tel: 86-591-7503506 Fax: 86-591-7503521      Microchip Technology Nordic ApS
+32255 Northwestern Highway, Suite 190   China - Shanghai                             Regus Business Centre
+Farmington Hills, MI 48334              Microchip Technology Consulting (Shanghai)   Lautrup hoj 1-3
+Tel: 248-538-2250 Fax: 248-538-2260     Co., Ltd.                                    Ballerup DK-2750 Denmark
+Kokomo                                  Room 701, Bldg. B                            Tel: 45 4420 9895 Fax: 45 4420 9910
+2767 S. Albright Road                   Far East International Plaza                 France
+Kokomo, Indiana 46902                   No. 317 Xian Xia Road                        Microchip Technology SARL
+Tel: 765-864-8360 Fax: 765-864-8387     Shanghai, 200051                             Parc d’Activite du Moulin de Massy
+Los Angeles                             Tel: 86-21-6275-5700 Fax: 86-21-6275-5060    43 Rue du Saule Trapu
+18201 Von Karman, Suite 1090            China - Shenzhen                             Batiment A - ler Etage
+Irvine, CA 92612                                                                     91300 Massy, France
+                                        Microchip Technology Consulting (Shanghai)
+Tel: 949-263-1888 Fax: 949-263-1338                                                  Tel: 33-1-69-53-63-20 Fax: 33-1-69-30-90-79
+                                        Co., Ltd., Shenzhen Liaison Office
+New York                                Rm. 1315, 13/F, Shenzhen Kerry Centre,       Germany
+150 Motor Parkway, Suite 202            Renminnan Lu                                 Microchip Technology GmbH
+Hauppauge, NY 11788                     Shenzhen 518001, China                       Gustav-Heinemann Ring 125
+Tel: 631-273-5305 Fax: 631-273-5335     Tel: 86-755-2350361 Fax: 86-755-2366086      D-81739 Munich, Germany
+                                                                                     Tel: 49-89-627-144 0 Fax: 49-89-627-144-44
+San Jose                                Hong Kong
+Microchip Technology Inc.               Microchip Technology Hongkong Ltd.           Italy
+2107 North First Street, Suite 590      Unit 901-6, Tower 2, Metroplaza              Microchip Technology SRL
+San Jose, CA 95131                      223 Hing Fong Road                           Centro Direzionale Colleoni
+Tel: 408-436-7950 Fax: 408-436-7955     Kwai Fong, N.T., Hong Kong                   Palazzo Taurus 1 V. Le Colleoni 1
+                                        Tel: 852-2401-1200 Fax: 852-2401-3431        20041 Agrate Brianza
+Toronto
+                                                                                     Milan, Italy
+6285 Northam Drive, Suite 108           India                                        Tel: 39-039-65791-1 Fax: 39-039-6899883
+Mississauga, Ontario L4V 1X5, Canada    Microchip Technology Inc.
+Tel: 905-673-0699 Fax: 905-673-6509     India Liaison Office                         United Kingdom
+                                        Divyasree Chambers                           Arizona Microchip Technology Ltd.
+                                        1 Floor, Wing A (A3/A4)                      505 Eskdale Road
+                                        No. 11, O’Shaugnessey Road                   Winnersh Triangle
+                                        Bangalore, 560 025, India                    Wokingham
+                                        Tel: 91-80-2290061 Fax: 91-80-2290062        Berkshire, England RG41 5TU
+                                                                                     Tel: 44 118 921 5869 Fax: 44-118 921-5820
+
+                                                                                                                           01/18/02
+
+
+
+
+                                                                                              2002 Microchip Technology Inc.
+
