@@ -112,4 +112,4 @@ The listing re-assembles byte-identical to `pmuv1.bin` (checked with `tools/reas
 | `tools/m740.py` | 740 opcode table and decoder |
 | `tools/dis740.py` | Independent recursive disassembler → `pmuv1_independent_disassembly.txt` |
 | `tools/reasm740.py` | Re-assembles the listing and compares it with the ROM: `python3 tools/reasm740.py pmuv1.bin.asm pmuv1.bin` |
-| `docs/` | CPU documentation (M50753 datasheet extract, 740 Software Manual PDF + text) and ADB documentation (Microchip AN591 PDF + text) |
+| `docs/` | CPU documentation (M50753 datasheet extract, 740 Software Manual PDF + text) ADB documentation (Microchip AN591 PDF + text) and the Rockwell R6522 VIA datasheet (host interface) |

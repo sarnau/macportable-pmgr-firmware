@@ -6,7 +6,7 @@ The firmware runs on a Mitsubishi M50753 (740 family) and handles ADB, power swi
 - [pmuv1_analysis.md](pmuv1_analysis.md) — analysis, command table, list of corrections
 - [pmuv1.bin.asm](pmuv1.bin.asm) — corrected IAR 740 listing (re-assembles byte-identical to `pmuv1.bin`)
 - [tools/](tools) — 740 disassembler and re-assembly checker
-- [docs/](docs) — CPU (M50753 / 740 family) and ADB reference documentation
+- [docs/](docs) — CPU (M50753 / 740 family), ADB and 6522 VIA reference documentation
 
 ```bash
 python3 tools/reasm740.py pmuv1.bin.asm pmuv1.bin
