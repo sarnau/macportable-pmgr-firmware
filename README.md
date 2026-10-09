@@ -70,6 +70,19 @@ It talks to the 68000 through the VIA:
 
 **ADB receive:** the receive routine moves the stack pointer to `$10` and uses PHA to store each received byte into the 8-byte buffer at `$08-$0F`.
 
+## Checked against the host side
+
+The Portable's main ROM (`93ca3846.rom`, not included) contains the other end of the protocol: the `_PMgrOp` trap (`$A085`), the `/PMINT` handler and the ADB, battery, sound and sleep code. It confirms:
+
+- **Wiring:** VIA at `$F70000`; PMREQ is VIA PB0 (host output), PMACK is VIA PB1 (host input), the data bus is VIA port A.
+- **Busy signal:** before sending a command the host waits until port A reads `$FF`. The `$07` the PMGR drives onto the bus while busy therefore means "busy".
+- **Commands:** about 30 call sites use exactly the formats documented in the listing (powerCntl bit 7 = on/off, PRAM/XPRAM/time formats, pMgrADB = command, flags, count, data; read commands have bit 3 set).
+- **readINT:** the handler dispatches bit 0 to ADB, bit 1 to battery and bit 2 to a second battery handler. This PMGR never sets bit 2.
+- **ADB flags:** bit 0 is the OS's "bus initialisation in progress" flag, bit 2 auto-poll (the OS sends flags = 4 when it starts polling a device), bit 3 SRQ (the OS then polls the other devices), bit 4 no data (the OS discards the data).
+- **Battery:** the OS uses only flag bit 0 (charger connected: no idle power-down), bit 5 (charger changed) and the voltage byte. It averages 8 samples and applies its own levels from XPRAM `$72/$73` (default 78/62, the same values the PMGR keeps at `$42/$43`). The third byte (IN0) is never used.
+- **Sound:** every 10 s the OS reads soundRead. If sound is on but nothing was played (latch bit clear), it switches sound off; otherwise it clears the latch. So P33 = sound on and the IN2 latch records sound activity.
+- **Sleep:** the OS sends sleepReq with `'MATT'`, checks for the `$70` reply and then loops until the PMGR cuts the power. Before that it waits while the modem rings with wake on ring enabled (modemRead bits 2 and 4).
+
 ## Bugs and oddities in the firmware
 
 - `CHECK_BATTERY` compares `XPRAM_44` with IN0 and then branches to the next instruction, so the result is never used (dead code).

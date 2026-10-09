@@ -24,13 +24,16 @@
 ;
 ; Host interface (68000 through the 6522 VIA):
 ;   P2        8-bit data bus
-;   P37 in    PMREQ  host request / acknowledge
-;   P36 out   PMACK  PMGR acknowledge / data valid
+;   P37 in    PMREQ  (VIA PB0) host request / acknowledge
+;   P36 out   PMACK  (VIA PB1) PMGR acknowledge / data valid
 ;   P35 out   /PMINT (VIA CB1) interrupt pulse
 ;   P34 out   1 Hz   (VIA CA1) one-second pulse
 ; Every transfer is: command byte, count byte, count data bytes. A reply uses
 ; the same format. After /PMINT the host sends readINT ($78) and then fetches
 ; the data with readADB ($28) or batteryRead ($68).
+; Host side: the Portable ROM (93ca3846) talks to the PMGR through the
+; _PMgrOp trap ($A085); its VIA is at $F70000. Notes below marked "OS:" were
+; checked against that code.
 ;
 ; Timing: the only time base is the 60.15 Hz tick on INT1. Its interrupt is
 ; never enabled, because an interrupt would break the cycle-counted ADB code.
@@ -94,7 +97,8 @@ FLAG_RING_WAKEUP:  EQU 7        ; wake on modem ring enabled
 ;------------------------------------------------------------------------------
 INT_ADB:           EQU 0        ; ADB result available (readADB)
 INT_BATT:          EQU 1        ; battery/charger status changed (batteryRead)
-INT_BATT2:         EQU 2        ; cleared by batteryRead, never set in this ROM
+INT_BATT2:         EQU 2        ; never set in this ROM. OS: has a handler that
+                                ; just calls batteryRead
 INT_RESET:         EQU 3        ; PMGR had a cold reset, cleared by readINT
 M_INT_ADB:         EQU 1
 M_INT_BATT:        EQU 2
@@ -103,7 +107,9 @@ M_INT_RESET:       EQU 8
 
 ;------------------------------------------------------------------------------
 ; ADB_FLAGS ($06): written by the host with pMgrADB, returned by readADB.
-; Bit 0 belongs to the host and is preserved.
+; Bit 0 belongs to the host and is preserved. OS: it marks "bus
+; initialisation in progress"; the OS discards data when bit 4 is set and
+; polls the other devices when bit 3 is set.
 ;------------------------------------------------------------------------------
 ADBF_PENDING:      EQU 1        ; a pMgrADB command waits to be sent
 ADBF_AUTOPOLL:     EQU 2        ; repeat the command every tick; an empty answer
@@ -150,10 +156,11 @@ IRQ_INT1_REQ:      EQU 7        ; polled with BIT/BPL
 PWM_EN:            EQU 0
 
 ; IN ($EE): analog / digital input port
-IN2_SOUND_LATCH:   EQU 2        ; sound latch (powerRead reports it as is,
-                                ; soundRead inverted)
+IN2_SOUND_LATCH:   EQU 2        ; 0 = sound was played since the latch was cleared
+                                ; (powerRead reports the pin, soundRead inverts it)
 IN3_OFF_HOOK:      EQU 3        ; 0 = modem off hook
-; IN0 and IN1 are read with the A-D: IN1 = battery voltage, IN0 unknown.
+; IN0 and IN1 are read with the A-D: IN1 = battery voltage, IN0 unknown
+; (OS: reported by batteryRead but never used).
 
 ; Port P0 ($E0): power planes. All active low (0 = on) except bit 6.
 P00_IWM_CNTRL:     EQU 0        ; floppy (IWM) power
@@ -462,8 +469,9 @@ INIT_WAIT_TICK:
 ;     nibble through COMMAND_TABLE
 ; readINT and readADB are checked first because the host sends them after
 ; every /PMINT.
-; While busy with a tick or ADB the PMGR drives $07 onto the data bus (the
-; reason is unknown).
+; While busy with a tick or ADB the PMGR drives $07 onto the data bus as a
+; busy signal. OS: before sending a command the host waits until the bus
+; reads $FF (released, pulled up).
 ;------------------------------------------------------------------------------
 MAIN_LOOP:
                 ldm     #0, PORT_P2_DIR ; release the data bus
@@ -880,7 +888,7 @@ HICHG_CHECK_MIN:
 ; charger change, power-up)
 ; AD_CTRL bit 3 routes "conversion done" to IRQ_T1_AD_REQ, which is polled.
 ; In:  BAT_VOLTAGE (BATTERY_SAMPLE only)
-; Out: BAT_VOLTAGE = IN1, BAT_IN0 = IN0 (unknown input, maybe temperature)
+; Out: BAT_VOLTAGE = IN1, BAT_IN0 = IN0 (unknown input, unused by the OS)
 ; Changes: A
 ;------------------------------------------------------------------------------
 BATTERY_SAMPLE:
@@ -1890,6 +1898,11 @@ MODEM_RD_SEND:
 ; Like readADB, the interrupt cause is only cleared if no newer /PMINT was
 ; sent; BATF_CHARGER_CHANGED is cleared with it because the host has now seen
 ; the change.
+; OS: only BATF_CHARGER (no idle power-down while charging),
+; BATF_CHARGER_CHANGED and the voltage are used. The OS averages 8 voltage
+; samples and applies its own levels (XPRAM $72/$73, default 78/62). The
+; LOW, VERY_LOW and DEAD bits are not read by the OS; they only matter inside
+; the PMGR (forced sleep, no wake-up).
 ; In:  COMMAND
 ; Out: reply, INT_STATE, BAT_FLAGS
 ; Changes: A, X, Y
@@ -1942,6 +1955,8 @@ COMMAND_78_readINT:
 ; from switching the machine off. Reply: PM_SLEEP_ACK or PM_SLEEP_NAK as the
 ; command byte, count 0. On ACK the PMGR goes to sleep.
 ; Other $7x are ignored.
+; OS: before sleepReq the OS waits while the modem rings with wake on ring
+; enabled; after the ACK it just loops until the PMGR cuts the power.
 ; In:  COMMAND, COMMAND_SIZE
 ; Out: reply; on success does not return (ENTER_SLEEP)
 ; Changes: A, X, Y
@@ -2150,10 +2165,13 @@ TIMER_READ_SEND:
 
 ;------------------------------------------------------------------------------
 ; COMMAND_9x_SOUND - sound power and the sound latch
+; The latch records sound activity, so the OS can save power: every 10 s it
+; reads the state, switches sound off if nothing was played, else clears the
+; latch and keeps it on (OS: $90422E).
 ; $90 soundSet: bit 0 = sound on (P33), bit 1 = 1 clears the sound latch.
 ;     No reply.
 ; $98 soundRead (and $99-$9F): reply 1 byte: bit 0 = sound on,
-;     bit 1 = sound latch (IN2 low).
+;     bit 1 = sound was played (IN2 low).
 ; In:  COMMAND, COMMAND_SIZE
 ; Out: PORT_P3, reply
 ; Changes: A, X, Y
