@@ -147,7 +147,16 @@ A GitHub Actions workflow (`.github/workflows/verify.yml`) runs both checks on e
 
 ## Provenance and copyright
 
-- `pmuv1.bin` is the Power Manager mask ROM of the Macintosh Portable, © Apple Computer 1987–1989 (written by Michael Hanlon). SHA256 `0F9911AB33A62A2831D683D9648059BD7AD59C455B59DCD214C610CE16EEBD57`.
+- `pmuv1.bin` is the Power Manager mask ROM (M50753, Apple part 342S0753-A), © Apple Computer 1987–1989, written by Michael Hanlon. It is the `pmuv1.bin` dump from MAME's `macprtb` ROM set; the hashes match MAME's ROM definition exactly:
+
+  | | |
+  |---|---|
+  | Size | 6144 bytes (`$1800`) |
+  | CRC32 | `01dae148` |
+  | SHA1 | `29d2fca7426c31f2b9334832ed3d257974a61bb1` |
+  | SHA256 | `0f9911ab33a62a2831d683d9648059bd7ad59c455b59dcd214c610ce16eebd57` |
+
+  MAME uses the same dump for the PowerBook 100 (`macpb100`), so as far as MAME knows both machines run this firmware.
 - The documents in `docs/` are © their publishers: Mitsubishi Electric / Renesas (M50753 data book pages, 740 Family Software Manual), Microchip (AN591) and Rockwell (R6522).
-- Host-side behaviour was checked against the Macintosh Portable ROM (`93ca3846`, not included), MAME's `macprtb.cpp` (BSD-3-Clause) and macintoshportable.info.
+- Host-side behaviour was checked against the Macintosh Portable ROM `93ca3846.rom` (not included; CRC32 `497348f8`, SHA1 `79b468b33fc53f11e87e2e4b195aac981bf0c0a6`, the same dump as in MAME's `macprtb` set), MAME's `macprtb.cpp` (BSD-3-Clause) and macintoshportable.info.
 - The listing comments, the README and `tools/` are new work in this repository.
