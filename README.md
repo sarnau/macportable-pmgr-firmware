@@ -64,6 +64,8 @@ It talks to the 68000 through the VIA:
 | `$90/$98` | soundSet / soundRead |
 | `$E0/$E8/$EA/$EC/$EF` | write RAM / read RAM / version (`$02,$B5`) / self test / soft reset |
 
+**Sleep:** the sleep loop calls the tick routine without waiting for the 60 Hz flag. The STOP_CLK pulse (P12) on every pass must therefore stop the PMGR's own clock until the next tick, so the PMGR sleeps as well.
+
 **Power-up behaviour:** after a cold reset the PMGR goes straight into the sleep loop, as long as P32 is high, which is the normal case. The Mac only powers on when a key is pressed. A low battery voltage forces the same sleep path.
 
 **ADB receive:** the receive routine moves the stack pointer to `$10` and uses PHA to store each received byte into the 8-byte buffer at `$08-$0F`.
@@ -110,6 +112,8 @@ All auto-generated `loc_xxxx` labels have descriptive names. The main renames:
 | `VECTOR_INT2_RESET_CONTINUE` | `WARM_RESET` / `INIT` |
 | `PRAM_BUFFER*`, `PRAM_CHKSUM` | `XPRAM*`, `XPRAM_CHKSUM`; `XPRAM_BAT_LOW` ($42, default 78), `XPRAM_BAT_DEAD` ($43, default 62) |
 | `BUFFER`, `BUFFER_CNT` | `ADB_BUFFER`, `ADB_COUNT` |
+| `P33_SOUND_OFF` | `P33_SOUND_ON`: it is cleared at reset and before sleep and set by soundSet bit 0, so 1 means on |
+| `P05_SOUND_PWR` | `P05_SOUND_LATCH_CLR`: the firmware only ever pulses it to clear the sound latch |
 
 The battery and ADB bit names are my reading of the code, not Apple's names.
 
@@ -121,6 +125,12 @@ The battery and ADB bit names are my reading of the code, not Apple's names.
 - Incoming parameter counts (`READ_PARAMETER`, `xPramWrite`) are never checked against the 8-byte buffer or the 128-byte XPRAM.
 - `readINT` bit 2 is cleared by batteryRead but never set anywhere.
 - `DELAY_SMALL` at `$FF00` is never called.
+- Removing the charger does not switch the high-rate charge output (P15) off; it stays on until the charger is connected again.
+- While the battery is below the low level, the battery interrupt is set again on every tick, so the host gets /PMINT 60 times a second.
+- Listen and Flush commands also run through the ADB receive code, which times out and reports `ADBF_NO_DATA|ADBF_ERROR`.
+- pMgrADB accepts at most 5 Listen data bytes; more overflow the 8-byte parameter buffer into `PTR` while it is in use.
+- Waking up by modem ring also disables the wake-up alarm.
+- readPmgrRAM with only the two address bytes sends no reply at all.
 - In `COMMAND_8x_TIMER`, the `bbs 3, COMMAND` test right after `cmp #$80` can never branch.
 
 ## Files
