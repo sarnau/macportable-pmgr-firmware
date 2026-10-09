@@ -20,14 +20,14 @@ The evidence from the ROM image and the code matches the M50753 datasheet in the
 
 The keyboard controller is a different chip, an M50740 (the firmware resets it through P14). The M50740 has no A-D and no PWM, so it can't be the chip running this ROM.
 
-**Clock:** f(XIN) = 4 MHz, so φ = 1 MHz and one cycle takes 1 µs. Counting the cycles in the ADB loops gives the timings the ADB spec requires (see `docs/Microchip AN591 Apple Desktop Bus.pdf`):
+**Clock:** f(XIN) = 3.93216 MHz (the crystal MAME uses for this machine), so φ = f/4 = 983 kHz and one cycle takes 1.017 µs. Counting the cycles in the ADB loops gives the timings the ADB spec requires (see `docs/Microchip AN591 Apple Desktop Bus.pdf`), about 1.7% long:
 
-- 800 µs attention
+- 814 µs attention (800 cycles)
 - about 70 µs sync
 - 65 µs low for a '0' bit, 35 µs low for a '1' bit
 - 65 µs stop bit
 - about 160 µs Tlt
-- about 4.6 ms reset pulse
+- about 4.7 ms reset pulse
 
 ## What the firmware does
 
@@ -47,7 +47,7 @@ It talks to the 68000 through the VIA:
 - P2 is the data bus.
 - P37 is PMREQ (input) and P36 is PMACK (output).
 - P35 drives /PMINT to VIA CB1.
-- P34 sends a 1 Hz pulse to VIA CA1.
+- P34 sends a 1 Hz pulse to VIA CA2 (CA1 is the 60 Hz tick).
 
 | Cmd | Function |
 |---|---|
@@ -91,6 +91,18 @@ The Portable's main ROM (`93ca3846.rom`, not included) contains the other end of
 - The ROM's Sad Mac codes `$0014` (communication) and `$0010` (self test) with minor codes `$CD33`–`$CD38` are the host-side handshake timeouts; `$CD38` means the PMGR never signalled "ready" (data bus `$FF`).
 - Still unknown: what is connected to the second analog input, IN0.
 
+## Checked against MAME
+
+MAME's Mac Portable / PowerBook 100 driver ([`src/mame/apple/macprtb.cpp`](https://github.com/mamedev/mame/blob/master/src/mame/apple/macprtb.cpp)) runs this ROM on an emulated M50753 and lists the board wiring. It agrees with this listing on nearly every pin (VIA_TEST on P32, STOP CLK on P12, CHRG ON/ on P13, KBD RST/ on P14, HICHG on P15, DISP BLANK/ on P42, MODEM_INS/ on P43, the IN port bits). Its CPU model also confirms the interrupt control bits (A-D done = bit 5) and the PWM enable bit. MAME writes the current time into PMGR RAM `$25-$28`, big-endian, which matches `TIME_S`.
+
+Differences:
+
+- **Crystal:** MAME uses 3.93216 MHz, not the 4 MHz I first assumed from the cycle counts. The listing now uses that value.
+- **1 Hz pulse:** it goes to VIA CA2; CA1 carries the 60 Hz tick. Fixed in the listing.
+- MAME lists P01 and P17 as not connected. The firmware drives them as SCC power and MODEM_A/B, and the OS uses modemRead bit 1 (MODEM_A/B), so I kept those names.
+- MAME's IN0 is just "PMGR_IN0" as well; its purpose is still unknown.
+- On the PowerBook 100, IN5 low requests SCSI Target Disk Mode. This ROM never reads IN5.
+
 ## Bugs and oddities in the firmware
 
 - `CHECK_BATTERY` compares `XPRAM_44` with IN0 and then branches to the next instruction, so the result is never used (dead code).
@@ -131,4 +143,11 @@ To regenerate the plain disassembly:
 python3 tools/dis740.py pmuv1.bin pmuv1_independent_disassembly.txt
 ```
 
-The ROM image and the vendor documents are copyright of their respective owners.
+A GitHub Actions workflow (`.github/workflows/verify.yml`) runs both checks on every push.
+
+## Provenance and copyright
+
+- `pmuv1.bin` is the Power Manager mask ROM of the Macintosh Portable, © Apple Computer 1987–1989 (written by Michael Hanlon). SHA256 `0F9911AB33A62A2831D683D9648059BD7AD59C455B59DCD214C610CE16EEBD57`.
+- The documents in `docs/` are © their publishers: Mitsubishi Electric / Renesas (M50753 data book pages, 740 Family Software Manual), Microchip (AN591) and Rockwell (R6522).
+- Host-side behaviour was checked against the Macintosh Portable ROM (`93ca3846`, not included), MAME's `macprtb.cpp` (BSD-3-Clause) and macintoshportable.info.
+- The listing comments, the README and `tools/` are new work in this repository.

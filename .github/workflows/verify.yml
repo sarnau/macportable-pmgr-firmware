@@ -1,0 +1,17 @@
+name: Verify listing
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  reassemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Re-assemble pmuv1.bin.asm and compare with pmuv1.bin
+        run: python3 tools/reasm740.py pmuv1.bin.asm pmuv1.bin
+      - name: Check the plain disassembly is up to date
+        run: |
+          python3 tools/dis740.py pmuv1.bin /tmp/dis.txt
+          diff -u pmuv1_independent_disassembly.txt /tmp/dis.txt

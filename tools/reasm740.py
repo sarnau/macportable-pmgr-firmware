@@ -121,4 +121,8 @@ for ln,pc,bs,raw in out:
     real=list(d[pc-BASE:pc-BASE+len(bs)])
     if real!=bs:
         bad+=1; print(f'line {ln} ${pc:04X}: listing->{bytes(bs).hex()} binary={bytes(real).hex()} | {raw.strip()[:90]}')
-print('mismatches',bad, 'last pc %04X'%(out[-1][1]+len(out[-1][2])))
+end=out[-1][1]+len(out[-1][2])
+print('mismatches',bad, 'last pc %04X'%end)
+if end != BASE+len(d):
+    print('listing does not cover the whole ROM'); bad+=1
+sys.exit(1 if bad else 0)

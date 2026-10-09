@@ -14,8 +14,9 @@
 ;   ROM   $E800-$FFFF  6144 bytes, special page $FF00-$FFFF, vectors $FFF4-$FFFF
 ;   RAM   $0000-$00BF  192 bytes, stack at the top
 ;   SFR   $00E0-$00FF  ports P0-P4, input port IN, A-D, PWM, serial I/O, timers
-;   Clock f(XIN) = 4 MHz, phi = 1 MHz: one cycle = 1 us. All ADB timing is done
-;   with cycle-counted code.
+;   Clock f(XIN) = 3.93216 MHz (per MAME), phi = f/4 = 983 kHz: one cycle is
+;   1.017 us. All ADB timing is done with cycle-counted code; the times in
+;   the comments are cycle counts, the real times are 1.7% longer.
 ;   740 extras used: SEB/CLB/BBS/BBC (bit ops on A or zero page), LDM #imm,zp,
 ;   TST zp, JSR (zp), JSR \sp (2-byte call into $FFxx), BRA. The T flag stays 0.
 ;
@@ -28,7 +29,7 @@
 ;   P37 in    PMREQ  (VIA PB0) host request / acknowledge
 ;   P36 out   PMACK  (VIA PB1) PMGR acknowledge / data valid
 ;   P35 out   /PMINT (VIA CB1) interrupt pulse
-;   P34 out   1 Hz   (VIA CA1) one-second pulse
+;   P34 out   1 Hz   (VIA CA2) one-second pulse
 ; Every transfer is: command byte, count byte, count data bytes. A reply uses
 ; the same format. After /PMINT the host sends readINT ($78) and then fetches
 ; the data with readADB ($28) or batteryRead ($68).
@@ -165,12 +166,14 @@ PWM_EN:            EQU 0
 IN2_SOUND_LATCH:   EQU 2        ; 0 = sound was played since the latch was cleared
                                 ; (powerRead reports the pin, soundRead inverts it)
 IN3_OFF_HOOK:      EQU 3        ; 0 = modem off hook
-; IN0 and IN1 are read with the A-D: IN1 = battery voltage, IN0 unknown
-; (OS: reported by batteryRead but never used).
+; IN0 and IN1 are read with the A-D: IN1 = battery voltage ("A/D FILTER"),
+; IN0 = PMGR_IN0, unknown (OS: reported by batteryRead but never used).
+; On the PowerBook 100, IN5 low requests SCSI Target Disk Mode (per MAME); this
+; ROM never reads it.
 
 ; Port P0 ($E0): power planes. All active low (0 = on) except bit 6.
 P00_IWM_CNTRL:     EQU 0        ; floppy (IWM) power
-P01_SCC_CNTRL:     EQU 1        ; SCC power
+P01_SCC_CNTRL:     EQU 1        ; SCC power (MAME lists it as not connected)
 P02_HD_PWR:        EQU 2        ; hard disk power
 P03_MODEM_PWR:     EQU 3        ; modem power
 P04_SERIAL_PWR:    EQU 4        ; serial driver power
@@ -198,7 +201,7 @@ P13_CHRG_ON:       EQU 3        ; in: low = charger connected
 P14_KBD_RST:       EQU 4        ; out: low = reset the M50740 keyboard controller
 P15_HICHG:         EQU 5        ; out: high-rate charge
 P16_RING_DETECT:   EQU 6        ; in: low = modem ring
-P17_MODEM_AB:      EQU 7        ; out: MODEM_A/B select
+P17_MODEM_AB:      EQU 7        ; out: MODEM_A/B select (MAME: not connected)
 M_P10_N_C:         EQU $01
 M_P16_RING_DETECT: EQU $40
 M_P17_MODEM_AB:    EQU $80
@@ -214,7 +217,8 @@ P32_VIA_TEST:      EQU 2        ; in: VIA_TEST, low = factory test. Grounding it
 P33_SOUND_ON:      EQU 3        ; out: 1 = sound on (soundSet bit 0). IDA called it
                                 ; SOUND_OFF, but it is cleared at reset and before
                                 ; sleep, so 1 must mean on
-P34_1SEC:          EQU 4        ; out: 1 Hz pulse to VIA CA1
+P34_1SEC:          EQU 4        ; out: 1 Hz pulse to VIA CA2 (per MAME; CA1 is the
+                                ; 60 Hz tick)
 P35_PMINT:         EQU 5        ; out: /PMINT pulse to VIA CB1
 P36_PMACK:         EQU 6        ; out: handshake to the VIA
 P37_PMREQ:         EQU 7        ; in:  handshake from the VIA
@@ -542,7 +546,7 @@ MAIN_DO_ADB:
                 and     #$F
                 bne     MAIN_ADB_SEND
                 seb     P40_PMGR_ADB, PORT_P4 ; command $x0 is an ADB reset: line low
-                ldx     #0              ; for 3 x 1545 us = 4.6 ms (spec: >= 3 ms)
+                ldx     #0              ; for 3 x 1545 cycles = 4.7 ms (spec: >= 3 ms)
                 jsr     \DELAY_LOOP_X
                 jsr     \DELAY_LOOP_X
                 jsr     \DELAY_LOOP_X
@@ -1028,7 +1032,7 @@ TICK_CHECK_BAT:
 ;------------------------------------------------------------------------------
 ; ADB_SEND_CMD - send the ADB command and, for Listen, its data
 ; The ADB has no hardware support here, so the waveform is produced by
-; cycle-counted code (1 cycle = 1 us); the delays below only work at 4 MHz.
+; cycle-counted code (1 cycle ~ 1 us); the delays only fit this crystal.
 ; P40 = 1 pulls the line low, P41 reads it back. Every time the line is
 ; released it must read high, otherwise another device is driving it.
 ;   attention 800 us low, sync 70 us high, 8 command bits, stop bit
@@ -2571,7 +2575,8 @@ VECTOR_INT1:
 ;------------------------------------------------------------------------------
 ; Delays in the special page $FF00, called with the 2-byte JSR \xx. The ADB
 ; code calls them often, so the short call saves ROM.
-; DELAY_LOOP_X: 6*X + 9 cycles including the JSR (X = 0: 256 loops, 1545 us)
+; DELAY_LOOP_X: 6*X + 9 cycles including the JSR (X = 0: 256 loops, 1545
+;   cycles = 1.57 ms)
 ;   In: X   Out: X = 0
 ; DELAY_RTS: 11 cycles (JSR + RTS)
 ; DELAY_SMALL: not used
