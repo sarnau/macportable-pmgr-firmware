@@ -9,7 +9,8 @@
 ; Input SHA256: 0F9911AB33A62A2831D683D9648059BD7AD59C455B59DCD214C610CE16EEBD57
 ;==============================================================================
 ;
-; CPU: Mitsubishi M50753 (MELPS 740 family: 6502 core plus bit instructions)
+; CPU: Mitsubishi M50753 (MELPS 740 family: 6502 core plus bit instructions),
+;   Apple part number 342S0753-A
 ;   ROM   $E800-$FFFF  6144 bytes, special page $FF00-$FFFF, vectors $FFF4-$FFFF
 ;   RAM   $0000-$00BF  192 bytes, stack at the top
 ;   SFR   $00E0-$00FF  ports P0-P4, input port IN, A-D, PWM, serial I/O, timers
@@ -122,6 +123,11 @@ ADBF_ERROR:        EQU 7        ; set with BUS_ERR or a receive timeout
 
 ;------------------------------------------------------------------------------
 ; BAT_FLAGS ($1D): first byte of batteryRead
+; Battery voltage scale (IN1): the hybrid maps the battery to 0-5 V, about
+; 255 = 7.5 V (full, charger on) and 51 = 5.6 V (example values from
+; macintoshportable.info). The default levels are therefore roughly
+; LOW 78 = 5.85 V, VERY_LOW 70 = 5.78 V, DEAD 62 = 5.7 V; the high-rate
+; charge runs between 90 = 6.0 V and 208 = 7.1 V.
 ;------------------------------------------------------------------------------
 BATF_CHARGER:      EQU 0        ; charger connected (P13 low)
 BATF_HICHARGE_ON:  EQU 1        ; high-rate charge on (copy of P15)
@@ -183,7 +189,7 @@ M_P06_neg5_EN:     EQU $40
 M_P07_SYS_PWR:     EQU $80
 
 ; Port P1 ($E2)
-P10_N_C:           EQU 0        ; not connected, set by TICK in test mode
+P10_N_C:           EQU 0        ; not connected, set by TICK in VIA_TEST mode
 P11_AKD:           EQU 1        ; in: any key down (from the keyboard controller)
 P12_STOP_CLK:      EQU 2        ; out: pulsed low while asleep. The sleep loop
                                 ; does not wait for the tick itself, so the pulse
@@ -200,8 +206,11 @@ M_P17_MODEM_AB:    EQU $80
 ; Port P3 ($E8)
 P30_RESET:         EQU 0        ; in: reset/interrupt switch (low = pressed)
 P31_SYS_RST:       EQU 1        ; out: low = reset the 68000 and peripherals
-P32_VIA_TEST:      EQU 2        ; in: high = normal. Low (test mode?) keeps the power
-                                ; on: no sleep at power-on, no low battery shutdown
+P32_VIA_TEST:      EQU 2        ; in: VIA_TEST, low = factory test. Grounding it
+                                ; (J22 edge connector pin 7) at boot starts the ROM's
+                                ; Test Manager; the PMGR then keeps the power on: no
+                                ; sleep at power-on, no low battery shutdown, all
+                                ; planes forced on
 P33_SOUND_ON:      EQU 3        ; out: 1 = sound on (soundSet bit 0). IDA called it
                                 ; SOUND_OFF, but it is cleared at reset and before
                                 ; sleep, so 1 must mean on
@@ -734,7 +743,7 @@ SB_OK:
 ; - On battery: compare the voltage with the levels in XPRAM. BATF_LOW sets
 ;   INT_BATT on every tick, so the host keeps getting /PMINT until the voltage
 ;   recovers. A dead battery shuts the machine down (unless it is already
-;   asleep or P32 is low) before the voltage gets too low to run.
+;   asleep or in VIA_TEST mode) before the voltage gets too low to run.
 ; Note: removing the charger does not switch the high-rate charge (P15) off;
 ; it stays on until the charger is connected again.
 ; In:  BAT_FLAGS, BAT_HICHG_STATE, XPRAM levels
@@ -953,8 +962,8 @@ BAT_READ_WAIT2:
 ;------------------------------------------------------------------------------
 ; TICK - 60 Hz housekeeping
 ; Called whenever IRQ_INT1_REQ is set (and once per wake-up while asleep).
-; - Awake with P32 low: force every plane except the modem on (a test mode,
-;   presumably so the board runs without the OS managing power).
+; - Awake in VIA_TEST mode (P32 low): force every plane except the modem on,
+;   so the Test Manager can run without the OS managing power.
 ; - Every 60th tick: 1 Hz pulse to the VIA (the Mac OS counts seconds with
 ;   it), increment the clock, and while asleep compare it with the alarm.
 ;   The alarm is only needed to wake the machine; FLAG_ALARM_HIT lasts one

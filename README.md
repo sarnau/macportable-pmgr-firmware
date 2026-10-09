@@ -83,6 +83,14 @@ The Portable's main ROM (`93ca3846.rom`, not included) contains the other end of
 - **Sound:** every 10 s the OS reads soundRead. If sound is on but nothing was played (latch bit clear), it switches sound off; otherwise it clears the latch. So P33 = sound on and the IN2 latch records sound activity.
 - **Sleep:** the OS sends sleepReq with `'MATT'`, checks for the `$70` reply and then loops until the PMGR cuts the power. Before that it waits while the modem rings with wake on ring enabled (modemRead bits 2 and 4).
 
+## Hardware notes from macintoshportable.info
+
+- The Power Manager is Apple part **342S0753-A**, an M50753.
+- **VIA_TEST (P32)** is the factory test line on pin 7 of the J22 edge connector. Grounding it at boot starts the ROM's Test Manager. The PMGR then keeps the machine powered: no sleep at power-on, no low-battery shutdown, and all power planes forced on except the modem.
+- **Battery A/D (IN1):** the hybrid maps the battery voltage onto 0–5 V; about 7.5 V gives 5.0 V (255) and 5.6 V gives about 1.0 V (51). With these example values the default levels are roughly LOW 78 = 5.85 V, VERY_LOW 70 = 5.78 V and DEAD 62 = 5.7 V, and the high-rate charge runs between 90 = 6.0 V and 208 = 7.1 V.
+- The ROM's Sad Mac codes `$0014` (communication) and `$0010` (self test) with minor codes `$CD33`–`$CD38` are the host-side handshake timeouts; `$CD38` means the PMGR never signalled "ready" (data bus `$FF`).
+- Still unknown: what is connected to the second analog input, IN0.
+
 ## Bugs and oddities in the firmware
 
 - `CHECK_BATTERY` compares `XPRAM_44` with IN0 and then branches to the next instruction, so the result is never used (dead code).
