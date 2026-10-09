@@ -4,7 +4,7 @@
 
 **Mitsubishi M50753**, a single-chip MCU in the MELPS 740 family. The 740 is a 6502 derivative with extra bit instructions and a few other additions.
 
-The evidence from the ROM image and the code matches the M50753 datasheet in `1989_Mitsubishi_Single-Chip_8-Bit_Microcomputers.pdf`, p. 2-199ff (extract: `M50753_datasheet_extract.txt`):
+The evidence from the ROM image and the code matches the M50753 datasheet in `1989_Mitsubishi_Single-Chip_8-Bit_Microcomputers.pdf`, p. 2-199ff (extract: `docs/M50753_datasheet_extract.txt`):
 
 | Item | Datasheet | Firmware |
 |---|---|---|
@@ -16,7 +16,7 @@ The evidence from the ROM image and the code matches the M50753 datasheet in `19
 
 The keyboard controller is a different chip, an M50740 (the firmware resets it through P14). The M50740 has no A-D and no PWM, so it can't be the chip running this ROM.
 
-**Clock:** f(XIN) = 4 MHz, so φ = 1 MHz and one cycle takes 1 µs. Counting the cycles in the ADB loops gives the timings the ADB spec requires (see AN591):
+**Clock:** f(XIN) = 4 MHz, so φ = 1 MHz and one cycle takes 1 µs. Counting the cycles in the ADB loops gives the timings the ADB spec requires (see `docs/Microchip AN591 Apple Desktop Bus.pdf`):
 
 - 800 µs attention
 - about 70 µs sync
@@ -112,4 +112,4 @@ The listing re-assembles byte-identical to `pmuv1.bin` (checked with `tools/reas
 | `tools/m740.py` | 740 opcode table and decoder |
 | `tools/dis740.py` | Independent recursive disassembler → `pmuv1_independent_disassembly.txt` |
 | `tools/reasm740.py` | Re-assembles the listing and compares it with the ROM: `python3 tools/reasm740.py pmuv1.bin.asm pmuv1.bin` |
-| `M50753_datasheet_extract.txt`, `REN_740_software_manual.txt`, `Microchip AN591 Apple Desktop Bus.txt` | Text extracted from the reference PDFs |
+| `docs/` | CPU documentation (M50753 datasheet extract, 740 Software Manual PDF + text) and ADB documentation (Microchip AN591 PDF + text) |
